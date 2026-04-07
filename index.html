@@ -311,14 +311,15 @@
 
 <!-- ════════════════════════════ JAVASCRIPT ══════════════════════════════ -->
 <script>
-// ─── Embedded Config (deployed shared keys) ──────────────────────────────────
-// Fill these in BEFORE deploying to GitHub Pages so anyone with the link can use the app.
-// Leave empty for local dev — the app falls back to localStorage Settings.
+// ─── Embedded Config ──────────────────────────────────────────────────────────
+// Public repo coordinates (NOT secrets) — so visitors auto-load the right database.
+// Secrets (Gemini key, GitHub token) are NEVER embedded — they live only in each
+// uploader's browser localStorage via the Settings modal.
 const EMBEDDED = {
-    geminiKey: 'AIzaSyBg8log5UsFxCEMUkd9I6MAqm6FFVCuxkk',  // Google Gemini API key (free tier from aistudio.google.com/apikey)
-    ghToken:   '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',  // Fine-grained GitHub PAT — scope to ONLY this repo, Contents: Read & Write
-    ghOwner:   'Malfonsin13',  // Your GitHub username (e.g. "malfo")
-    ghRepo:    'pitcher-tracker',  // The repo name (e.g. "pitcher-tracker")
+    geminiKey: '',
+    ghToken:   '',
+    ghOwner:   'Malfonsin13',
+    ghRepo:    'pitcher-tracker',
 };
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -335,12 +336,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loadSettingsToModal();
 
-    const s = cfg();
-    if (s.ghToken && s.ghOwner && s.ghRepo) {
-        loadData();
-    } else {
-        openSettings();
-    }
+    // Always try loading the public dashboard data — no token needed for reads.
+    if (cfg().ghOwner && cfg().ghRepo) loadData();
 
     // Drag & drop
     const area = document.getElementById('upload-area');
@@ -653,11 +650,19 @@ function ghHeaders(s) {
 
 async function loadData() {
     const s = cfg();
-    if (!s.ghToken || !s.ghOwner || !s.ghRepo) return;
+    if (!s.ghOwner || !s.ghRepo) return;
     try {
-        const { content } = await ghGet(s, 'data/training_log.json');
-        const parsed = JSON.parse(b64dec(content));
-        db = parsed;
+        // Read directly from raw.githubusercontent.com — no auth required for public repos.
+        // Cache-buster ensures we always see the latest commit.
+        const url = `https://raw.githubusercontent.com/${s.ghOwner}/${s.ghRepo}/main/data/training_log.json?t=${Date.now()}`;
+        const res = await fetch(url, { cache: 'no-store' });
+        if (res.status === 404) {
+            db = { sessions: [] };
+        } else if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+        } else {
+            db = await res.json();
+        }
         if (!Array.isArray(db.sessions)) db.sessions = [];
         updatePlayerFilter();
         renderHistory();
