@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pitcher Training Tracker</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; color: #1a1a2e; min-height: 100vh; }
+
+        /* ── Header ── */
+        header { background: #1e3a5f; color: white; padding: 0 20px; display: flex; align-items: center; justify-content: space-between; height: 54px; box-shadow: 0 2px 8px rgba(0,0,0,0.25); }
+        .header-left { display: flex; align-items: center; gap: 10px; }
+        header h1 { font-size: 1rem; font-weight: 700; letter-spacing: 0.3px; }
+        .header-sub { font-size: 0.7rem; opacity: 0.65; margin-top: 1px; }
+        .settings-btn { background: none; border: none; color: rgba(255,255,255,0.8); cursor: pointer; font-size: 1.1rem; padding: 5px 8px; border-radius: 6px; transition: background 0.15s; }
+        .settings-btn:hover { background: rgba(255,255,255,0.12); }
+
+        /* ── Tabs ── */
+        .tabs { background: #1e3a5f; display: flex; padding: 0 20px; border-bottom: 2px solid rgba(255,255,255,0.08); }
+        .tab-btn { background: none; border: none; color: rgba(255,255,255,0.55); padding: 11px 18px; font-size: 0.85rem; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.18s; font-weight: 500; }
+        .tab-btn.active { color: white; border-bottom-color: #e63946; }
+        .tab-btn:hover { color: rgba(255,255,255,0.9); }
+
+        /* ── Layout ── */
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .content { max-width: 880px; margin: 0 auto; padding: 22px 16px; }
+
+        /* ── Cards ── */
+        .card { background: white; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.09); padding: 22px; margin-bottom: 18px; }
+        .card-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #999; margin-bottom: 14px; }
+
+        /* ── Buttons ── */
+        .btn { padding: 9px 18px; border: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-primary { background: #1e3a5f; color: white; }
+        .btn-primary:hover:not(:disabled) { background: #162e4d; }
+        .btn-success { background: #2a9d8f; color: white; }
+        .btn-success:hover:not(:disabled) { background: #238a7d; }
+        .btn-ghost { background: none; border: 1.5px solid #dde1e7; color: #555; }
+        .btn-ghost:hover { border-color: #aaa; background: #f8f8f8; }
+        .btn-sm { padding: 5px 11px; font-size: 0.77rem; }
+
+        /* ── Upload area ── */
+        .upload-area { border: 2px dashed #c9d4e0; border-radius: 10px; padding: 36px 20px; text-align: center; cursor: pointer; transition: all 0.2s; position: relative; background: #fafbfc; }
+        .upload-area:hover, .upload-area.dragover { border-color: #1e3a5f; background: #f0f4ff; }
+        .upload-area.has-file { border-color: #2a9d8f; border-style: solid; background: #f0fdfb; }
+        .upload-area input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+        .upload-icon { font-size: 2.2rem; margin-bottom: 10px; }
+        .upload-label { font-size: 0.88rem; color: #555; }
+        .upload-hint { font-size: 0.75rem; color: #aaa; margin-top: 5px; }
+        .preview-img { max-width: 100%; max-height: 180px; border-radius: 8px; margin: 12px auto 4px; display: block; object-fit: contain; }
+        .file-name { font-size: 0.8rem; color: #2a9d8f; font-weight: 600; margin-top: 4px; }
+
+        /* ── Form row ── */
+        .form-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+        .form-row label { font-size: 0.82rem; font-weight: 600; color: #555; min-width: 90px; }
+        input[type=date] { padding: 7px 11px; border: 1.5px solid #dde1e7; border-radius: 8px; font-size: 0.85rem; color: #333; }
+        input[type=date]:focus { outline: none; border-color: #1e3a5f; }
+
+        /* ── Status bar ── */
+        .status-bar { padding: 11px 14px; border-radius: 8px; font-size: 0.83rem; margin-bottom: 14px; display: none; align-items: center; gap: 9px; }
+        .status-bar.info { background: #e8f0fe; color: #1e3a5f; display: flex; }
+        .status-bar.error { background: #fde8ea; color: #b91c2c; display: flex; }
+        .status-bar.success { background: #d1fae5; color: #065f46; display: flex; }
+        .spinner { width: 15px; height: 15px; border: 2px solid rgba(30,58,95,0.25); border-top-color: #1e3a5f; border-radius: 50%; animation: spin 0.6s linear infinite; flex-shrink: 0; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Confirm table ── */
+        .table-wrap { overflow-x: auto; }
+        .confirm-table { width: 100%; border-collapse: collapse; }
+        .confirm-table th { padding: 8px 10px; text-align: left; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #999; border-bottom: 2px solid #f0f0f0; white-space: nowrap; }
+        .confirm-table td { padding: 6px 10px; border-bottom: 1px solid #f6f6f6; vertical-align: middle; }
+        .confirm-table tr:last-child td { border-bottom: none; }
+        .confirm-table input[type=text] { width: 100%; border: 1.5px solid #e5e9ef; border-radius: 6px; padding: 5px 8px; font-size: 0.83rem; min-width: 110px; }
+        .confirm-table input[type=text]:focus { outline: none; border-color: #1e3a5f; }
+        .check-cell { text-align: center; }
+        .check-cell input[type=checkbox] { width: 15px; height: 15px; cursor: pointer; accent-color: #1e3a5f; }
+
+        /* ── Intensity toggle ── */
+        .intensity-toggle { display: flex; gap: 3px; }
+        .int-btn { padding: 4px 9px; border: 1.5px solid #dde1e7; border-radius: 5px; background: white; font-size: 0.75rem; font-weight: 700; cursor: pointer; transition: all 0.12s; color: #888; }
+        .int-btn:hover { background: #f5f5f5; }
+        .int-btn.active-L { background: #2a9d8f; color: white; border-color: #2a9d8f; }
+        .int-btn.active-M { background: #f4a261; color: white; border-color: #f4a261; }
+        .int-btn.active-H { background: #e63946; color: white; border-color: #e63946; }
+        .remove-btn { background: none; border: none; color: #ccc; cursor: pointer; font-size: 0.95rem; padding: 3px 6px; border-radius: 4px; }
+        .remove-btn:hover { color: #e63946; background: #fff0f1; }
+        .add-row-btn { background: none; border: 1.5px dashed #dde1e7; color: #aaa; width: 100%; padding: 7px; border-radius: 8px; cursor: pointer; font-size: 0.8rem; margin-top: 8px; transition: all 0.15s; }
+        .add-row-btn:hover { border-color: #1e3a5f; color: #1e3a5f; background: #f8faff; }
+
+        /* ── History filters ── */
+        .filter-bar { background: white; border-radius: 12px 12px 0 0; box-shadow: 0 1px 4px rgba(0,0,0,0.09); padding: 14px 20px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; border-bottom: 1px solid #f0f0f0; }
+        .filter-bar select { padding: 7px 11px; border: 1.5px solid #dde1e7; border-radius: 8px; font-size: 0.83rem; min-width: 150px; }
+        .filter-bar select:focus, .filter-bar input:focus { outline: none; border-color: #1e3a5f; }
+
+        /* ── Player grid ── */
+        .player-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(185px, 1fr)); gap: 12px; margin-bottom: 22px; }
+        .player-card { background: white; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); padding: 15px; cursor: pointer; transition: all 0.18s; border: 2px solid transparent; }
+        .player-card:hover { box-shadow: 0 3px 12px rgba(0,0,0,0.13); border-color: #1e3a5f; }
+        .pc-name { font-weight: 700; font-size: 0.9rem; margin-bottom: 5px; }
+        .pc-sessions { font-size: 0.75rem; color: #999; margin-bottom: 9px; }
+        .int-bar { height: 7px; border-radius: 4px; overflow: hidden; display: flex; }
+        .int-bar-h { background: #e63946; }
+        .int-bar-m { background: #f4a261; }
+        .int-bar-l { background: #2a9d8f; }
+        .int-legend { display: flex; gap: 8px; margin-top: 6px; }
+        .int-legend span { font-size: 0.68rem; color: #888; display: flex; align-items: center; gap: 3px; }
+        .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+        /* ── Detail panel ── */
+        .back-link { font-size: 0.74rem; color: #888; cursor: pointer; margin-bottom: 8px; display: inline-block; }
+        .back-link:hover { color: #1e3a5f; }
+        .detail-name { font-size: 1.35rem; font-weight: 800; margin-bottom: 16px; }
+        .stats-row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 20px; }
+        .stat-chip { background: #f7f8fa; border-radius: 9px; padding: 10px 16px; text-align: center; min-width: 80px; }
+        .stat-chip .val { font-size: 1.5rem; font-weight: 800; line-height: 1; }
+        .stat-chip .lbl { font-size: 0.68rem; color: #999; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 3px; }
+        .stat-chip.h-chip .val { color: #e63946; }
+        .stat-chip.m-chip .val { color: #f4a261; }
+        .stat-chip.l-chip .val { color: #2a9d8f; }
+        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        @media (max-width: 560px) { .two-col { grid-template-columns: 1fr; } }
+        .chart-box { position: relative; height: 190px; }
+        .focus-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+        .focus-pill { padding: 5px 12px; border-radius: 16px; font-size: 0.78rem; font-weight: 600; }
+        .fp-velo { background: #dbeafe; color: #1d4ed8; }
+        .fp-cmd { background: #fce7f3; color: #be185d; }
+        .fp-pd { background: #ede9fe; color: #6d28d9; }
+
+        /* ── Timeline ── */
+        .timeline-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f5f5f5; font-size: 0.81rem; }
+        .timeline-item:last-child { border-bottom: none; }
+        .tl-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+        .tl-date { color: #999; min-width: 95px; }
+        .tl-focus { color: #555; flex: 1; }
+        .tl-int { font-weight: 700; font-size: 0.75rem; }
+
+        /* ── All players chart ── */
+        .all-chart-box { position: relative; }
+
+        /* ── Empty state ── */
+        .empty-state { text-align: center; padding: 44px 20px; color: #bbb; }
+        .empty-state .ei { font-size: 2.8rem; margin-bottom: 12px; }
+        .empty-state p { font-size: 0.88rem; }
+
+        /* ── Modal ── */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.48); display: none; z-index: 1000; align-items: center; justify-content: center; padding: 16px; }
+        .modal-overlay.open { display: flex; }
+        .modal { background: white; border-radius: 14px; padding: 26px; width: 420px; max-width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.28); }
+        .modal h2 { font-size: 1.05rem; font-weight: 700; margin-bottom: 20px; }
+        .mfield { margin-bottom: 14px; }
+        .mfield label { display: block; font-size: 0.78rem; font-weight: 600; color: #555; margin-bottom: 5px; }
+        .mfield input { width: 100%; padding: 8px 11px; border: 1.5px solid #dde1e7; border-radius: 8px; font-size: 0.85rem; }
+        .mfield input:focus { outline: none; border-color: #1e3a5f; }
+        .mhint { font-size: 0.71rem; color: #bbb; margin-top: 4px; line-height: 1.4; }
+        .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 22px; }
+
+        @media (max-width: 600px) {
+            .content { padding: 14px 10px; }
+            .player-grid { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════ HEADER ═══════════════════════════════ -->
+<header>
+    <div class="header-left">
+        <span style="font-size:1.5rem">⚾</span>
+        <div>
+            <h1>Pitcher Training Tracker</h1>
+            <div class="header-sub">Session Log &amp; Intent Analytics</div>
+        </div>
+    </div>
+    <button class="settings-btn" onclick="openSettings()" title="Settings">⚙️</button>
+</header>
+
+<div class="tabs">
+    <button class="tab-btn active" id="tab-btn-upload" onclick="switchTab('upload', this)">📸 Upload Session</button>
+    <button class="tab-btn" id="tab-btn-history" onclick="switchTab('history', this)">📊 Player History</button>
+</div>
+
+<!-- ════════════════════════════ UPLOAD TAB ══════════════════════════════ -->
+<div id="tab-upload" class="tab-content active">
+<div class="content">
+
+    <div class="card">
+        <div class="card-title">New Training Session</div>
+
+        <div class="form-row">
+            <label>Session Date</label>
+            <input type="date" id="session-date">
+        </div>
+
+        <div class="upload-area" id="upload-area">
+            <input type="file" id="file-input" accept="image/*" onchange="handleFileSelect(event)">
+            <div id="upload-placeholder">
+                <div class="upload-icon">📷</div>
+                <div class="upload-label"><strong>Click or drag &amp; drop</strong> the whiteboard photo</div>
+                <div class="upload-hint">Photo stays in your browser only — never uploaded to any server</div>
+            </div>
+            <img id="preview-img" class="preview-img" style="display:none" alt="Preview">
+            <div id="file-name-label" class="file-name" style="display:none"></div>
+        </div>
+
+        <div style="display:flex;gap:10px;margin-top:13px;align-items:center;flex-wrap:wrap;">
+            <button class="btn btn-primary" id="parse-btn" onclick="parsePhoto()" disabled>
+                🤖 Parse Whiteboard
+            </button>
+            <button class="btn btn-ghost btn-sm" id="clear-btn" onclick="clearUpload()" style="display:none">
+                ✕ Clear
+            </button>
+        </div>
+    </div>
+
+    <div class="status-bar" id="status-bar"></div>
+
+    <!-- Confirmation table (hidden until parse) -->
+    <div class="card" id="confirm-card" style="display:none">
+        <div class="card-title">Confirm Session Data — review &amp; edit, then save</div>
+        <div class="table-wrap">
+            <table class="confirm-table">
+                <thead>
+                    <tr>
+                        <th style="min-width:120px">Player</th>
+                        <th class="check-cell" style="min-width:72px">Velo/<br>Delivery</th>
+                        <th class="check-cell" style="min-width:66px">Command</th>
+                        <th class="check-cell" style="min-width:76px">Pitch<br>Design</th>
+                        <th style="min-width:106px">Intensity</th>
+                        <th style="width:28px"></th>
+                    </tr>
+                </thead>
+                <tbody id="confirm-tbody"></tbody>
+            </table>
+        </div>
+        <button class="add-row-btn" onclick="addPlayerRow()">+ Add Player</button>
+        <div style="display:flex;gap:10px;margin-top:18px;justify-content:flex-end;flex-wrap:wrap;">
+            <button class="btn btn-ghost" onclick="clearUpload()">Cancel</button>
+            <button class="btn btn-success" id="save-btn" onclick="saveSession()">✓ Confirm &amp; Save</button>
+        </div>
+    </div>
+
+</div>
+</div>
+
+<!-- ═══════════════════════════ HISTORY TAB ══════════════════════════════ -->
+<div id="tab-history" class="tab-content">
+<div class="content" style="padding-top:0">
+
+    <div class="filter-bar">
+        <select id="player-filter" onchange="renderHistory()">
+            <option value="">All Players</option>
+        </select>
+        <input type="date" id="from-date" onchange="renderHistory()" title="From date"
+               style="padding:7px 11px;border:1.5px solid #dde1e7;border-radius:8px;font-size:0.83rem;">
+        <input type="date" id="to-date" onchange="renderHistory()" title="To date"
+               style="padding:7px 11px;border:1.5px solid #dde1e7;border-radius:8px;font-size:0.83rem;">
+        <button class="btn btn-ghost btn-sm" onclick="clearFilters()">Clear</button>
+        <button class="btn btn-primary btn-sm" onclick="loadData()" style="margin-left:auto;">↻ Refresh</button>
+    </div>
+
+    <div class="card" style="border-radius:0 0 12px 12px;margin-top:0;box-shadow:0 2px 6px rgba(0,0,0,0.08);">
+        <div id="history-content">
+            <div class="empty-state">
+                <div class="ei">📋</div>
+                <p>No data loaded yet. Configure Settings then click Refresh.</p>
+            </div>
+        </div>
+    </div>
+
+</div>
+</div>
+
+<!-- ══════════════════════════ SETTINGS MODAL ════════════════════════════ -->
+<div class="modal-overlay" id="settings-modal" onclick="modalOverlayClick(event)">
+    <div class="modal">
+        <h2>⚙️ Settings</h2>
+
+        <div class="mfield">
+            <label>Google Gemini API Key</label>
+            <input type="password" id="s-gemini" placeholder="AIza...">
+            <div class="mhint">Get one FREE at <strong>aistudio.google.com/apikey</strong> → sign in with Google → "Create API Key". No billing required, free tier covers 1500 requests/day. Stored only in your browser.</div>
+        </div>
+
+        <div class="mfield">
+            <label>GitHub Personal Access Token</label>
+            <input type="password" id="s-gh-token" placeholder="ghp_...">
+            <div class="mhint">GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic). Needs <strong>repo</strong> scope. Stored only in your browser.</div>
+        </div>
+
+        <div class="mfield">
+            <label>GitHub Username / Org</label>
+            <input type="text" id="s-gh-owner" placeholder="your-github-username">
+        </div>
+
+        <div class="mfield">
+            <label>GitHub Repository Name</label>
+            <input type="text" id="s-gh-repo" placeholder="pitcher-tracker">
+            <div class="mhint">The repo where <code>data/training_log.json</code> will be stored.</div>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="closeSettings()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveSettings()">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- ════════════════════════════ JAVASCRIPT ══════════════════════════════ -->
+<script>
+// ─── Embedded Config (deployed shared keys) ──────────────────────────────────
+// Fill these in BEFORE deploying to GitHub Pages so anyone with the link can use the app.
+// Leave empty for local dev — the app falls back to localStorage Settings.
+const EMBEDDED = {
+    geminiKey: 'AIzaSyBg8log5UsFxCEMUkd9I6MAqm6FFVCuxkk',  // Google Gemini API key (free tier from aistudio.google.com/apikey)
+    ghToken:   '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',  // Fine-grained GitHub PAT — scope to ONLY this repo, Contents: Read & Write
+    ghOwner:   'Malfonsin13',  // Your GitHub username (e.g. "malfo")
+    ghRepo:    'pitcher-tracker',  // The repo name (e.g. "pitcher-tracker")
+};
+
+// ─── State ────────────────────────────────────────────────────────────────────
+let selectedFile = null;
+let db = { sessions: [] };
+const charts = {};
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    // Default date = today
+    const d = new Date();
+    document.getElementById('session-date').value =
+        `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+    loadSettingsToModal();
+
+    const s = cfg();
+    if (s.ghToken && s.ghOwner && s.ghRepo) {
+        loadData();
+    } else {
+        openSettings();
+    }
+
+    // Drag & drop
+    const area = document.getElementById('upload-area');
+    area.addEventListener('dragover', e => { e.preventDefault(); area.classList.add('dragover'); });
+    area.addEventListener('dragleave', () => area.classList.remove('dragover'));
+    area.addEventListener('drop', e => {
+        e.preventDefault();
+        area.classList.remove('dragover');
+        const f = e.dataTransfer.files[0];
+        if (f && f.type.startsWith('image/')) setFile(f);
+    });
+});
+
+// ─── Config (localStorage) ────────────────────────────────────────────────────
+const LS = { gk: 'ptt_gk', gt: 'ptt_gt', go: 'ptt_go', gr: 'ptt_gr' };
+function cfg() {
+    return {
+        geminiKey: EMBEDDED.geminiKey || localStorage.getItem(LS.gk) || '',
+        ghToken:   EMBEDDED.ghToken   || localStorage.getItem(LS.gt) || '',
+        ghOwner:   EMBEDDED.ghOwner   || localStorage.getItem(LS.go) || '',
+        ghRepo:    EMBEDDED.ghRepo    || localStorage.getItem(LS.gr) || '',
+    };
+}
+
+function openSettings() {
+    loadSettingsToModal();
+    document.getElementById('settings-modal').classList.add('open');
+}
+function closeSettings() {
+    document.getElementById('settings-modal').classList.remove('open');
+}
+function modalOverlayClick(e) {
+    if (e.target === document.getElementById('settings-modal')) closeSettings();
+}
+function loadSettingsToModal() {
+    const s = cfg();
+    document.getElementById('s-gemini').value   = s.geminiKey;
+    document.getElementById('s-gh-token').value = s.ghToken;
+    document.getElementById('s-gh-owner').value = s.ghOwner;
+    document.getElementById('s-gh-repo').value  = s.ghRepo;
+}
+function saveSettings() {
+    localStorage.setItem(LS.gk, document.getElementById('s-gemini').value.trim());
+    localStorage.setItem(LS.gt, document.getElementById('s-gh-token').value.trim());
+    localStorage.setItem(LS.go, document.getElementById('s-gh-owner').value.trim());
+    localStorage.setItem(LS.gr, document.getElementById('s-gh-repo').value.trim());
+    closeSettings();
+    showStatus('Settings saved.', 'success', 2200);
+    loadData();
+}
+
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
+function switchTab(name, btn) {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(`tab-${name}`).classList.add('active');
+    btn.classList.add('active');
+    if (name === 'history') renderHistory();
+}
+
+// ─── File handling ────────────────────────────────────────────────────────────
+function handleFileSelect(e) {
+    const f = e.target.files[0];
+    if (f) setFile(f);
+}
+function setFile(f) {
+    selectedFile = f;
+    const area = document.getElementById('upload-area');
+    area.classList.add('has-file');
+    document.getElementById('upload-placeholder').style.display = 'none';
+    document.getElementById('file-name-label').textContent = f.name;
+    document.getElementById('file-name-label').style.display = 'block';
+    document.getElementById('parse-btn').disabled = false;
+    document.getElementById('clear-btn').style.display = 'inline-flex';
+
+    const reader = new FileReader();
+    reader.onload = e => {
+        const img = document.getElementById('preview-img');
+        img.src = e.target.result;
+        img.style.display = 'block';
+    };
+    reader.readAsDataURL(f);
+}
+function clearUpload() {
+    selectedFile = null;
+    document.getElementById('file-input').value = '';
+    const area = document.getElementById('upload-area');
+    area.classList.remove('has-file');
+    document.getElementById('upload-placeholder').style.display = 'block';
+    document.getElementById('file-name-label').style.display = 'none';
+    document.getElementById('preview-img').style.display = 'none';
+    document.getElementById('parse-btn').disabled = true;
+    document.getElementById('clear-btn').style.display = 'none';
+    document.getElementById('confirm-card').style.display = 'none';
+    hideStatus();
+}
+
+// ─── Gemini vision parse ──────────────────────────────────────────────────────
+async function parsePhoto() {
+    const s = cfg();
+    if (!s.geminiKey) {
+        showStatus('Please add your Google Gemini API key in Settings first.', 'error');
+        openSettings();
+        return;
+    }
+    if (!selectedFile) return;
+
+    showStatus('Analyzing whiteboard with Gemini vision…', 'info');
+    document.getElementById('parse-btn').disabled = true;
+
+    try {
+        const b64 = await fileToBase64(selectedFile);
+        const mime = selectedFile.type || 'image/jpeg';
+
+        const prompt = `Parse this baseball pitcher training whiteboard photo.
+
+The whiteboard has a table with these columns:
+1. Player Name (leftmost column — last name or "Last, First" format)
+2. "Velo Delivery" or "Velo/Delivery" — an X or checkmark in this column means the player worked on velocity/delivery mechanics (true), blank means false
+3. "Command" — same logic
+4. "Pitch Design" or "Shapes" — same logic
+5. "L/M/H" — a single letter L, M, or H (or written out Low/Moderate/High) indicating session intensity
+
+Return ONLY a valid JSON array with no other text, markdown, or explanation:
+[{"name":"LAST, FIRST","velo_delivery":true,"command":false,"pitch_design":false,"intensity":"M"}]
+
+Rules:
+- name: use exactly what is written, preserve capitalization
+- velo_delivery, command, pitch_design: true if there is an X or checkmark, false if blank
+- intensity: exactly "L", "M", or "H" — null if genuinely unreadable
+- Include every player row visible in the table`;
+
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${encodeURIComponent(s.geminiKey)}`;
+
+        const resp = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [
+                        { text: prompt },
+                        { inline_data: { mime_type: mime, data: b64 } }
+                    ]
+                }],
+                generationConfig: {
+                    temperature: 0.1,
+                    responseMimeType: 'application/json'
+                }
+            })
+        });
+
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(err.error?.message || `Gemini API error ${resp.status}`);
+        }
+
+        const data = await resp.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+        if (!text) throw new Error('Empty response from Gemini.');
+
+        // Extract JSON array (Gemini in JSON mode should return valid JSON, but be defensive)
+        const match = text.match(/\[[\s\S]*\]/);
+        if (!match) throw new Error('Gemini returned unexpected format. Raw: ' + text.slice(0, 200));
+
+        const players = JSON.parse(match[0]);
+        if (!Array.isArray(players) || players.length === 0) throw new Error('No players found in image.');
+
+        renderConfirmTable(players);
+        showStatus(`Found ${players.length} players — review and edit below, then save.`, 'success');
+
+    } catch (err) {
+        showStatus(`Error: ${err.message}`, 'error');
+    } finally {
+        document.getElementById('parse-btn').disabled = false;
+    }
+}
+
+function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = e => resolve(e.target.result.split(',')[1]);
+        r.onerror = reject;
+        r.readAsDataURL(file);
+    });
+}
+
+// ─── Confirmation table ───────────────────────────────────────────────────────
+function renderConfirmTable(players) {
+    const tbody = document.getElementById('confirm-tbody');
+    tbody.innerHTML = '';
+    players.forEach(p => addPlayerRow(p));
+    document.getElementById('confirm-card').style.display = 'block';
+    setTimeout(() => {
+        document.getElementById('confirm-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 60);
+}
+
+function addPlayerRow(player = {}) {
+    const tbody = document.getElementById('confirm-tbody');
+    const tr = document.createElement('tr');
+    const intensity = player.intensity || 'M';
+
+    tr.innerHTML = `
+        <td><input type="text" value="${esc(player.name || '')}" placeholder="Player name" class="pname"></td>
+        <td class="check-cell"><input type="checkbox" ${player.velo_delivery ? 'checked' : ''} class="ck-vd"></td>
+        <td class="check-cell"><input type="checkbox" ${player.command ? 'checked' : ''} class="ck-cmd"></td>
+        <td class="check-cell"><input type="checkbox" ${player.pitch_design ? 'checked' : ''} class="ck-pd"></td>
+        <td>
+            <div class="intensity-toggle">
+                <button class="int-btn ${intensity==='L'?'active-L':''}" onclick="setInt(this,'L')">L</button>
+                <button class="int-btn ${intensity==='M'?'active-M':''}" onclick="setInt(this,'M')">M</button>
+                <button class="int-btn ${intensity==='H'?'active-H':''}" onclick="setInt(this,'H')">H</button>
+            </div>
+        </td>
+        <td><button class="remove-btn" onclick="this.closest('tr').remove()" title="Remove">✕</button></td>
+    `;
+    tbody.appendChild(tr);
+}
+
+function setInt(btn, level) {
+    btn.parentElement.querySelectorAll('.int-btn').forEach(b => b.className = 'int-btn');
+    btn.classList.add(`active-${level}`);
+}
+
+function getTableRows() {
+    return Array.from(document.querySelectorAll('#confirm-tbody tr')).map(tr => {
+        const activeBtn = tr.querySelector('.int-btn[class*="active-"]');
+        const im = activeBtn ? activeBtn.className.match(/active-([LMH])/) : null;
+        return {
+            name:          tr.querySelector('.pname').value.trim(),
+            velo_delivery: tr.querySelector('.ck-vd').checked,
+            command:       tr.querySelector('.ck-cmd').checked,
+            pitch_design:  tr.querySelector('.ck-pd').checked,
+            intensity:     im ? im[1] : null,
+        };
+    }).filter(p => p.name);
+}
+
+// ─── Save session ─────────────────────────────────────────────────────────────
+async function saveSession() {
+    const s = cfg();
+    if (!s.ghToken || !s.ghOwner || !s.ghRepo) {
+        showStatus('Please configure GitHub settings first.', 'error');
+        openSettings();
+        return;
+    }
+
+    const date    = document.getElementById('session-date').value;
+    if (!date) { showStatus('Please pick a session date.', 'error'); return; }
+
+    const players = getTableRows();
+    if (!players.length) { showStatus('No players to save.', 'error'); return; }
+
+    const saveBtn = document.getElementById('save-btn');
+    saveBtn.disabled = true;
+    showStatus('Saving to GitHub…', 'info');
+
+    try {
+        const { content, sha } = await ghGet(s, 'data/training_log.json');
+        let data;
+        try { data = JSON.parse(b64dec(content)); } catch { data = { sessions: [] }; }
+        if (!Array.isArray(data.sessions)) data.sessions = [];
+
+        data.sessions.push({ id: `${date}-${Date.now()}`, date, players });
+        data.sessions.sort((a, b) => a.date.localeCompare(b.date));
+
+        await ghPut(s, 'data/training_log.json', b64enc(JSON.stringify(data, null, 2)), sha, `Add session ${date}`);
+        db = data;
+        updatePlayerFilter();
+        showStatus(`Saved! ${players.length} players logged for ${fmtDate(date)}.`, 'success');
+        clearUpload();
+    } catch (err) {
+        showStatus(`Save failed: ${err.message}`, 'error');
+    } finally {
+        saveBtn.disabled = false;
+    }
+}
+
+// ─── GitHub API ───────────────────────────────────────────────────────────────
+async function ghGet(s, path) {
+    const url = `https://api.github.com/repos/${s.ghOwner}/${s.ghRepo}/contents/${path}`;
+    const res = await fetch(url, { headers: ghHeaders(s) });
+    if (res.status === 404) return { content: btoa('{"sessions":[]}'), sha: null };
+    if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.message || `GitHub ${res.status}`);
+    }
+    const d = await res.json();
+    return { content: d.content.replace(/\n/g, ''), sha: d.sha };
+}
+
+async function ghPut(s, path, content, sha, message) {
+    const url  = `https://api.github.com/repos/${s.ghOwner}/${s.ghRepo}/contents/${path}`;
+    const body = { message, content };
+    if (sha) body.sha = sha;
+    const res = await fetch(url, {
+        method: 'PUT',
+        headers: { ...ghHeaders(s), 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.message || `GitHub write ${res.status}`);
+    }
+}
+
+function ghHeaders(s) {
+    return { Authorization: `token ${s.ghToken}`, Accept: 'application/vnd.github.v3+json' };
+}
+
+async function loadData() {
+    const s = cfg();
+    if (!s.ghToken || !s.ghOwner || !s.ghRepo) return;
+    try {
+        const { content } = await ghGet(s, 'data/training_log.json');
+        const parsed = JSON.parse(b64dec(content));
+        db = parsed;
+        if (!Array.isArray(db.sessions)) db.sessions = [];
+        updatePlayerFilter();
+        renderHistory();
+    } catch (err) {
+        console.error('Load error:', err);
+    }
+}
+
+// ─── History rendering ────────────────────────────────────────────────────────
+function updatePlayerFilter() {
+    const sel  = document.getElementById('player-filter');
+    const prev = sel.value;
+    const names = allPlayerNames();
+    sel.innerHTML = '<option value="">All Players</option>' +
+        names.map(n => `<option value="${esc(n)}"${n===prev?' selected':''}>${esc(n)}</option>`).join('');
+}
+
+function allPlayerNames() {
+    const s = new Set();
+    db.sessions.forEach(sess => sess.players.forEach(p => s.add(p.name)));
+    return [...s].sort();
+}
+
+function filteredSessions() {
+    const pf   = document.getElementById('player-filter')?.value || '';
+    const from = document.getElementById('from-date')?.value || '';
+    const to   = document.getElementById('to-date')?.value || '';
+    return db.sessions.filter(s => {
+        if (from && s.date < from) return false;
+        if (to   && s.date > to)   return false;
+        if (pf   && !s.players.some(p => p.name === pf)) return false;
+        return true;
+    });
+}
+
+function clearFilters() {
+    document.getElementById('player-filter').value = '';
+    document.getElementById('from-date').value = '';
+    document.getElementById('to-date').value = '';
+    renderHistory();
+}
+
+function renderHistory() {
+    const pf   = document.getElementById('player-filter')?.value || '';
+    const sess = filteredSessions();
+    const el   = document.getElementById('history-content');
+
+    if (!sess.length) {
+        el.innerHTML = `<div class="empty-state"><div class="ei">📋</div><p>No sessions found. Upload a photo to get started.</p></div>`;
+        return;
+    }
+    if (pf) renderPlayerDetail(pf, sess, el);
+    else    renderAllPlayers(sess, el);
+}
+
+// ── All-players view ──────────────────────────────────────────────────────────
+function renderAllPlayers(sessions, el) {
+    const names = allPlayerNames();
+    const stats = names.map(n => playerStats(n, sessions));
+
+    // Dynamic chart height
+    const chartH = Math.max(220, names.length * 34);
+
+    el.innerHTML = `
+        <div style="margin-bottom:22px;">
+            <div class="card-title">Intent Distribution — All Players</div>
+            <div class="all-chart-box" style="height:${chartH}px">
+                <canvas id="chart-all"></canvas>
+            </div>
+        </div>
+        <div class="card-title" style="margin-bottom:12px">Player Summary — click a card for detail</div>
+        <div class="player-grid">
+            ${stats.map(ps => playerCardHTML(ps)).join('')}
+        </div>
+    `;
+
+    destroyChart('all');
+    const ctx = document.getElementById('chart-all');
+    if (!ctx) return;
+    charts.all = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: stats.map(p => p.name),
+            datasets: [
+                { label: 'High',     data: stats.map(p => p.H), backgroundColor: '#e63946', stack: 'a' },
+                { label: 'Moderate', data: stats.map(p => p.M), backgroundColor: '#f4a261', stack: 'a' },
+                { label: 'Low',      data: stats.map(p => p.L), backgroundColor: '#2a9d8f', stack: 'a' },
+            ]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 14 } } },
+            scales: {
+                x: { stacked: true, ticks: { stepSize: 1 }, title: { display: true, text: 'Sessions' } },
+                y: { stacked: true },
+            }
+        }
+    });
+}
+
+function playerCardHTML(ps) {
+    const t = ps.total || 1; // avoid divide-by-zero
+    return `
+        <div class="player-card" onclick="selectPlayer('${esc(ps.name)}')">
+            <div class="pc-name">${esc(ps.name)}</div>
+            <div class="pc-sessions">${ps.total} session${ps.total !== 1 ? 's' : ''}</div>
+            <div class="int-bar">
+                <div class="int-bar-h" style="flex:${ps.H}"></div>
+                <div class="int-bar-m" style="flex:${ps.M}"></div>
+                <div class="int-bar-l" style="flex:${ps.L}"></div>
+            </div>
+            <div class="int-legend">
+                <span><span class="dot" style="background:#e63946"></span>H:${ps.H}</span>
+                <span><span class="dot" style="background:#f4a261"></span>M:${ps.M}</span>
+                <span><span class="dot" style="background:#2a9d8f"></span>L:${ps.L}</span>
+            </div>
+        </div>`;
+}
+
+function selectPlayer(name) {
+    document.getElementById('player-filter').value = name;
+    renderHistory();
+}
+
+// ── Single-player detail view ─────────────────────────────────────────────────
+function renderPlayerDetail(name, sessions, el) {
+    const ps   = playerStats(name, sessions);
+    const psessions = sessions
+        .filter(s => s.players.some(p => p.name === name))
+        .sort((a, b) => b.date.localeCompare(a.date));
+
+    const focusCounts = {
+        vd:  sessions.filter(s => s.players.some(p => p.name === name && p.velo_delivery)).length,
+        cmd: sessions.filter(s => s.players.some(p => p.name === name && p.command)).length,
+        pd:  sessions.filter(s => s.players.some(p => p.name === name && p.pitch_design)).length,
+    };
+
+    const intColor = { H: '#e63946', M: '#f4a261', L: '#2a9d8f' };
+
+    const timeline = psessions.slice(0, 25).map(sess => {
+        const p   = sess.players.find(p => p.name === name);
+        const foc = [p.velo_delivery && 'Velo/Del', p.command && 'Command', p.pitch_design && 'Pitch Design']
+            .filter(Boolean).join(', ') || '—';
+        const c = intColor[p.intensity] || '#ccc';
+        return `
+            <div class="timeline-item">
+                <div class="tl-dot" style="background:${c}"></div>
+                <div class="tl-date">${fmtDate(sess.date)}</div>
+                <div class="tl-focus">${esc(foc)}</div>
+                <div class="tl-int" style="color:${c}">${p.intensity || '—'}</div>
+            </div>`;
+    }).join('');
+
+    el.innerHTML = `
+        <div class="back-link" onclick="clearFilters()">← All Players</div>
+        <div class="detail-name">${esc(name)}</div>
+
+        <div class="stats-row">
+            <div class="stat-chip">
+                <div class="val">${ps.total}</div><div class="lbl">Total Sessions</div>
+            </div>
+            <div class="stat-chip h-chip">
+                <div class="val">${ps.H}</div><div class="lbl">High Intent</div>
+            </div>
+            <div class="stat-chip m-chip">
+                <div class="val">${ps.M}</div><div class="lbl">Moderate</div>
+            </div>
+            <div class="stat-chip l-chip">
+                <div class="val">${ps.L}</div><div class="lbl">Low Intent</div>
+            </div>
+        </div>
+
+        <div class="two-col">
+            <div>
+                <div class="card-title">Intent Distribution</div>
+                <div class="chart-box"><canvas id="chart-int"></canvas></div>
+            </div>
+            <div>
+                <div class="card-title">Focus Areas</div>
+                <div class="focus-pills">
+                    <span class="focus-pill fp-velo">Velo/Del: ${focusCounts.vd}</span>
+                    <span class="focus-pill fp-cmd">Command: ${focusCounts.cmd}</span>
+                    <span class="focus-pill fp-pd">Pitch Design: ${focusCounts.pd}</span>
+                </div>
+                <div class="chart-box" style="margin-top:12px"><canvas id="chart-focus"></canvas></div>
+            </div>
+        </div>
+
+        <div class="card-title" style="margin-bottom:8px">Session History</div>
+        <div>${timeline || '<div class="empty-state" style="padding:16px"><p>No sessions.</p></div>'}</div>
+    `;
+
+    // Intensity donut
+    destroyChart('int');
+    const ci = document.getElementById('chart-int');
+    if (ci) {
+        charts.int = new Chart(ci, {
+            type: 'doughnut',
+            data: {
+                labels: ['High', 'Moderate', 'Low'],
+                datasets: [{ data: [ps.H, ps.M, ps.L], backgroundColor: ['#e63946','#f4a261','#2a9d8f'], borderWidth: 0 }]
+            },
+            options: { responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { position: 'right', labels: { font: { size: 10 }, boxWidth: 12 } } } }
+        });
+    }
+
+    // Focus donut
+    destroyChart('focus');
+    const cf = document.getElementById('chart-focus');
+    if (cf) {
+        charts.focus = new Chart(cf, {
+            type: 'doughnut',
+            data: {
+                labels: ['Velo/Delivery', 'Command', 'Pitch Design'],
+                datasets: [{ data: [focusCounts.vd, focusCounts.cmd, focusCounts.pd],
+                    backgroundColor: ['#3b82f6','#ec4899','#8b5cf6'], borderWidth: 0 }]
+            },
+            options: { responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { position: 'right', labels: { font: { size: 10 }, boxWidth: 12 } } } }
+        });
+    }
+}
+
+// ─── Stats helper ─────────────────────────────────────────────────────────────
+function playerStats(name, sessions) {
+    let H = 0, M = 0, L = 0, total = 0;
+    sessions.forEach(s => {
+        const p = s.players.find(p => p.name === name);
+        if (!p) return;
+        total++;
+        if (p.intensity === 'H') H++;
+        else if (p.intensity === 'M') M++;
+        else if (p.intensity === 'L') L++;
+    });
+    return { name, H, M, L, total };
+}
+
+// ─── Chart helpers ────────────────────────────────────────────────────────────
+function destroyChart(key) {
+    if (charts[key]) { charts[key].destroy(); delete charts[key]; }
+}
+
+// ─── Status bar ───────────────────────────────────────────────────────────────
+let statusTimer;
+function showStatus(msg, type, ms = 0) {
+    clearTimeout(statusTimer);
+    const bar = document.getElementById('status-bar');
+    bar.className = `status-bar ${type}`;
+    bar.innerHTML = type === 'info'
+        ? `<div class="spinner"></div><span>${esc(msg)}</span>`
+        : esc(msg);
+    bar.style.display = 'flex';
+    if (ms) statusTimer = setTimeout(hideStatus, ms);
+}
+function hideStatus() {
+    document.getElementById('status-bar').style.display = 'none';
+}
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
+function esc(str) {
+    return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtDate(s) {
+    if (!s) return '';
+    const [y, m, d] = s.split('-');
+    return `${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m-1]} ${+d}, ${y}`;
+}
+function b64enc(str) { return btoa(unescape(encodeURIComponent(str))); }
+function b64dec(str) { return decodeURIComponent(escape(atob(str))); }
+</script>
+</body>
+</html>
