@@ -140,6 +140,10 @@
 
         /* ── All players chart ── */
         .all-chart-box { position: relative; }
+        .chart-mode-toggle { display: inline-flex; background: #f0f0f3; border-radius: 8px; padding: 3px; gap: 2px; }
+        .cmt-btn { background: transparent; border: none; padding: 6px 14px; border-radius: 6px; font-size: 0.78rem; font-weight: 600; color: #666; cursor: pointer; transition: all 0.15s; }
+        .cmt-btn:hover { color: #1a1a2e; }
+        .cmt-btn.active { background: #fff; color: #1a1a2e; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
 
         /* ── Sessions list ── */
         .session-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 4px; border-bottom: 1px solid #f0f0f0; }
@@ -200,11 +204,6 @@
     <div class="card" id="upload-card">
         <div class="card-title" id="upload-card-title">New Training Session</div>
 
-        <div class="form-row">
-            <label>Session Date</label>
-            <input type="date" id="session-date">
-        </div>
-
         <div class="upload-area" id="upload-area">
             <input type="file" id="file-input" accept="image/*" onchange="handleFileSelect(event)">
             <div id="upload-placeholder">
@@ -231,6 +230,10 @@
     <!-- Confirmation table (hidden until parse) -->
     <div class="card" id="confirm-card" style="display:none">
         <div class="card-title">Confirm Session Data — review &amp; edit, then save</div>
+        <div class="form-row" style="margin-bottom:14px">
+            <label>Session Date</label>
+            <input type="date" id="session-date">
+        </div>
         <div class="table-wrap">
             <table class="confirm-table">
                 <thead>
@@ -349,6 +352,7 @@ let selectedFile = null;
 let db = { sessions: [] };
 let editingSessionId = null;  // null = new session; otherwise the id we're editing
 const charts = {};
+let historyChartMode = 'intent'; // 'intent' or 'focus'
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -461,6 +465,10 @@ function clearUpload() {
     document.getElementById('upload-card').style.display = 'block';
     document.getElementById('upload-card-title').textContent = 'New Training Session';
     document.getElementById('save-btn').textContent = '✓ Confirm & Save';
+    // Reset date to today
+    const d = new Date();
+    document.getElementById('session-date').value =
+        `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     hideStatus();
 }
 
@@ -767,16 +775,25 @@ function renderHistory() {
 }
 
 // ── All-players view ──────────────────────────────────────────────────────────
+let _allStatsCache = [];
 function renderAllPlayers(sessions, el) {
     const names = allPlayerNames();
     const stats = names.map(n => playerStats(n, sessions));
+    _allStatsCache = stats;
 
     // Dynamic chart height
     const chartH = Math.max(220, names.length * 34);
 
+    const isIntent = historyChartMode === 'intent';
     el.innerHTML = `
         <div style="margin-bottom:22px;">
-            <div class="card-title">Intent Distribution — All Players</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
+                <div class="card-title" id="all-chart-title" style="margin-bottom:0">${isIntent ? 'Intent Distribution' : 'Focus Area Distribution'} — All Players</div>
+                <div class="chart-mode-toggle" role="tablist">
+                    <button type="button" class="cmt-btn ${isIntent ? 'active' : ''}" onclick="setHistoryChartMode('intent')">Intent</button>
+                    <button type="button" class="cmt-btn ${!isIntent ? 'active' : ''}" onclick="setHistoryChartMode('focus')">Focus Area</button>
+                </div>
+            </div>
             <div class="all-chart-box" style="height:${chartH}px">
                 <canvas id="chart-all"></canvas>
             </div>
@@ -787,19 +804,28 @@ function renderAllPlayers(sessions, el) {
         </div>
     `;
 
+    drawAllChart(stats);
+}
+
+function drawAllChart(stats) {
     destroyChart('all');
     const ctx = document.getElementById('chart-all');
     if (!ctx) return;
+    const isIntent = historyChartMode === 'intent';
+    const datasets = isIntent
+        ? [
+            { label: 'High',     data: stats.map(p => p.H), backgroundColor: '#e63946', stack: 'a' },
+            { label: 'Moderate', data: stats.map(p => p.M), backgroundColor: '#f4a261', stack: 'a' },
+            { label: 'Low',      data: stats.map(p => p.L), backgroundColor: '#2a9d8f', stack: 'a' },
+          ]
+        : [
+            { label: 'Velo/Delivery', data: stats.map(p => p.vd),  backgroundColor: '#3b82f6', stack: 'a' },
+            { label: 'Command',       data: stats.map(p => p.cmd), backgroundColor: '#ec4899', stack: 'a' },
+            { label: 'Pitch Design',  data: stats.map(p => p.pd),  backgroundColor: '#8b5cf6', stack: 'a' },
+          ];
     charts.all = new Chart(ctx, {
         type: 'bar',
-        data: {
-            labels: stats.map(p => p.name),
-            datasets: [
-                { label: 'High',     data: stats.map(p => p.H), backgroundColor: '#e63946', stack: 'a' },
-                { label: 'Moderate', data: stats.map(p => p.M), backgroundColor: '#f4a261', stack: 'a' },
-                { label: 'Low',      data: stats.map(p => p.L), backgroundColor: '#2a9d8f', stack: 'a' },
-            ]
-        },
+        data: { labels: stats.map(p => p.name), datasets },
         options: {
             indexAxis: 'y',
             responsive: true,
@@ -811,6 +837,17 @@ function renderAllPlayers(sessions, el) {
             }
         }
     });
+}
+
+function setHistoryChartMode(mode) {
+    if (mode === historyChartMode) return;
+    historyChartMode = mode;
+    const title = document.getElementById('all-chart-title');
+    if (title) title.textContent = (mode === 'intent' ? 'Intent Distribution' : 'Focus Area Distribution') + ' — All Players';
+    document.querySelectorAll('.cmt-btn').forEach(b => b.classList.remove('active'));
+    const btns = document.querySelectorAll('.cmt-btn');
+    if (btns.length === 2) btns[mode === 'intent' ? 0 : 1].classList.add('active');
+    drawAllChart(_allStatsCache);
 }
 
 function playerCardHTML(ps) {
@@ -939,7 +976,7 @@ function renderPlayerDetail(name, sessions, el) {
 
 // ─── Stats helper ─────────────────────────────────────────────────────────────
 function playerStats(name, sessions) {
-    let H = 0, M = 0, L = 0, total = 0;
+    let H = 0, M = 0, L = 0, total = 0, vd = 0, cmd = 0, pd = 0;
     sessions.forEach(s => {
         const p = s.players.find(p => p.name === name);
         if (!p) return;
@@ -947,8 +984,11 @@ function playerStats(name, sessions) {
         if (p.intensity === 'H') H++;
         else if (p.intensity === 'M') M++;
         else if (p.intensity === 'L') L++;
+        if (p.velo_delivery) vd++;
+        if (p.command)       cmd++;
+        if (p.pitch_design)  pd++;
     });
-    return { name, H, M, L, total };
+    return { name, H, M, L, total, vd, cmd, pd };
 }
 
 // ─── Chart helpers ────────────────────────────────────────────────────────────
