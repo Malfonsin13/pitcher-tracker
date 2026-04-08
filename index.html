@@ -141,6 +141,15 @@
         /* ── All players chart ── */
         .all-chart-box { position: relative; }
 
+        /* ── Sessions list ── */
+        .session-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 4px; border-bottom: 1px solid #f0f0f0; }
+        .session-row:last-child { border-bottom: none; }
+        .sr-info { flex: 1; min-width: 0; }
+        .sr-date { font-weight: 700; font-size: 0.92rem; color: #1a1a2e; }
+        .sr-meta { font-size: 0.75rem; color: #999; margin-top: 2px; }
+        .sr-actions { display: flex; gap: 6px; flex-shrink: 0; }
+        .sr-del:hover { border-color: #e63946 !important; color: #e63946 !important; background: #fff0f1 !important; }
+
         /* ── Empty state ── */
         .empty-state { text-align: center; padding: 44px 20px; color: #bbb; }
         .empty-state .ei { font-size: 2.8rem; margin-bottom: 12px; }
@@ -181,14 +190,15 @@
 <div class="tabs">
     <button class="tab-btn active" id="tab-btn-upload" onclick="switchTab('upload', this)">📸 Upload Session</button>
     <button class="tab-btn" id="tab-btn-history" onclick="switchTab('history', this)">📊 Player History</button>
+    <button class="tab-btn" id="tab-btn-sessions" onclick="switchTab('sessions', this)">📅 Sessions</button>
 </div>
 
 <!-- ════════════════════════════ UPLOAD TAB ══════════════════════════════ -->
 <div id="tab-upload" class="tab-content active">
 <div class="content">
 
-    <div class="card">
-        <div class="card-title">New Training Session</div>
+    <div class="card" id="upload-card">
+        <div class="card-title" id="upload-card-title">New Training Session</div>
 
         <div class="form-row">
             <label>Session Date</label>
@@ -243,6 +253,18 @@
         </div>
     </div>
 
+</div>
+</div>
+
+<!-- ═══════════════════════════ SESSIONS TAB ═════════════════════════════ -->
+<div id="tab-sessions" class="tab-content">
+<div class="content">
+    <div class="card">
+        <div class="card-title">All Sessions — edit or delete past entries</div>
+        <div id="sessions-list">
+            <div class="empty-state"><div class="ei">📋</div><p>No sessions yet.</p></div>
+        </div>
+    </div>
 </div>
 </div>
 
@@ -325,6 +347,7 @@ const EMBEDDED = {
 // ─── State ────────────────────────────────────────────────────────────────────
 let selectedFile = null;
 let db = { sessions: [] };
+let editingSessionId = null;  // null = new session; otherwise the id we're editing
 const charts = {};
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
@@ -395,7 +418,8 @@ function switchTab(name, btn) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.getElementById(`tab-${name}`).classList.add('active');
     btn.classList.add('active');
-    if (name === 'history') renderHistory();
+    if (name === 'history')  renderHistory();
+    if (name === 'sessions') renderSessionsList();
 }
 
 // ─── File handling ────────────────────────────────────────────────────────────
@@ -423,6 +447,7 @@ function setFile(f) {
 }
 function clearUpload() {
     selectedFile = null;
+    editingSessionId = null;
     document.getElementById('file-input').value = '';
     const area = document.getElementById('upload-area');
     area.classList.remove('has-file');
@@ -432,6 +457,10 @@ function clearUpload() {
     document.getElementById('parse-btn').disabled = true;
     document.getElementById('clear-btn').style.display = 'none';
     document.getElementById('confirm-card').style.display = 'none';
+    // Restore upload card visibility (may have been hidden in edit mode)
+    document.getElementById('upload-card').style.display = 'block';
+    document.getElementById('upload-card-title').textContent = 'New Training Session';
+    document.getElementById('save-btn').textContent = '✓ Confirm & Save';
     hideStatus();
 }
 
@@ -603,13 +632,28 @@ async function saveSession() {
         // Normalize names in existing sessions so the on-disk file gradually cleans up.
         data.sessions.forEach(s => s.players.forEach(p => p.name = normName(p.name)));
 
-        data.sessions.push({ id: `${date}-${Date.now()}`, date, players });
+        let commitMsg;
+        if (editingSessionId) {
+            const idx = data.sessions.findIndex(s => s.id === editingSessionId);
+            if (idx === -1) {
+                // Original session was deleted out from under us — append as new instead.
+                data.sessions.push({ id: `${date}-${Date.now()}`, date, players });
+                commitMsg = `Add session ${date} (original missing)`;
+            } else {
+                data.sessions[idx] = { id: editingSessionId, date, players };
+                commitMsg = `Edit session ${date}`;
+            }
+        } else {
+            data.sessions.push({ id: `${date}-${Date.now()}`, date, players });
+            commitMsg = `Add session ${date}`;
+        }
         data.sessions.sort((a, b) => a.date.localeCompare(b.date));
 
-        await ghPut(s, 'data/training_log.json', b64enc(JSON.stringify(data, null, 2)), sha, `Add session ${date}`);
+        await ghPut(s, 'data/training_log.json', b64enc(JSON.stringify(data, null, 2)), sha, commitMsg);
         db = data;
         updatePlayerFilter();
-        showStatus(`Saved! ${players.length} players logged for ${fmtDate(date)}.`, 'success');
+        const verb = editingSessionId ? 'Updated' : 'Saved';
+        showStatus(`${verb}! ${players.length} players logged for ${fmtDate(date)}.`, 'success');
         clearUpload();
     } catch (err) {
         showStatus(`Save failed: ${err.message}`, 'error');
@@ -939,6 +983,86 @@ function fmtDate(s) {
 }
 function b64enc(str) { return btoa(unescape(encodeURIComponent(str))); }
 function b64dec(str) { return decodeURIComponent(escape(atob(str))); }
+
+// ─── Sessions list (edit/delete) ──────────────────────────────────────────────
+function renderSessionsList() {
+    const el = document.getElementById('sessions-list');
+    if (!db.sessions.length) {
+        el.innerHTML = `<div class="empty-state"><div class="ei">📋</div><p>No sessions yet.</p></div>`;
+        return;
+    }
+    // Newest first
+    const sorted = [...db.sessions].sort((a, b) => b.date.localeCompare(a.date));
+    el.innerHTML = sorted.map(s => {
+        const counts = { H: 0, M: 0, L: 0 };
+        s.players.forEach(p => { if (counts[p.intensity] != null) counts[p.intensity]++; });
+        return `
+            <div class="session-row">
+                <div class="sr-info">
+                    <div class="sr-date">${fmtDate(s.date)}</div>
+                    <div class="sr-meta">${s.players.length} players · H:${counts.H} M:${counts.M} L:${counts.L}</div>
+                </div>
+                <div class="sr-actions">
+                    <button class="btn btn-ghost btn-sm" onclick="editSession('${s.id}')">✏️ Edit</button>
+                    <button class="btn btn-ghost btn-sm sr-del" onclick="deleteSession('${s.id}')">🗑 Delete</button>
+                </div>
+            </div>`;
+    }).join('');
+}
+
+function editSession(id) {
+    const sess = db.sessions.find(s => s.id === id);
+    if (!sess) return;
+    editingSessionId = id;
+
+    // Hide the photo upload card entirely — we're editing existing data, no photo needed.
+    document.getElementById('upload-card').style.display = 'none';
+    document.getElementById('upload-card-title').textContent = 'Edit Training Session';
+    document.getElementById('save-btn').textContent = '✓ Save Changes';
+    document.getElementById('session-date').value = sess.date;
+
+    // Show & populate the confirm card
+    renderConfirmTable(sess.players);
+
+    // Switch to upload tab
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-upload').classList.add('active');
+    document.getElementById('tab-btn-upload').classList.add('active');
+
+    showStatus(`Editing session from ${fmtDate(sess.date)} — make changes then click Save.`, 'info');
+}
+
+async function deleteSession(id) {
+    const sess = db.sessions.find(s => s.id === id);
+    if (!sess) return;
+    if (!confirm(`Delete session from ${fmtDate(sess.date)}?\n\n${sess.players.length} player entries will be permanently removed. This cannot be undone.`)) return;
+
+    const s = cfg();
+    if (!s.ghToken || !s.ghOwner || !s.ghRepo) {
+        alert('GitHub credentials needed to delete. Open Settings.');
+        openSettings();
+        return;
+    }
+
+    showStatus('Deleting session…', 'info');
+    try {
+        const { content, sha } = await ghGet(s, 'data/training_log.json');
+        let data;
+        try { data = JSON.parse(b64dec(content)); } catch { data = { sessions: [] }; }
+        if (!Array.isArray(data.sessions)) data.sessions = [];
+        data.sessions = data.sessions.filter(x => x.id !== id);
+        data.sessions.forEach(s => s.players.forEach(p => p.name = normName(p.name)));
+
+        await ghPut(s, 'data/training_log.json', b64enc(JSON.stringify(data, null, 2)), sha, `Delete session ${sess.date}`);
+        db = data;
+        updatePlayerFilter();
+        renderSessionsList();
+        showStatus(`Session from ${fmtDate(sess.date)} deleted.`, 'success', 3000);
+    } catch (err) {
+        showStatus(`Delete failed: ${err.message}`, 'error');
+    }
+}
 
 // Normalize player names so "HALL, O", "HALL,O", "HALL, O.", "hall, o" all collapse
 // to one canonical form: uppercase, trimmed, single space after comma, no trailing period.
