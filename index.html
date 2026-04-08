@@ -465,7 +465,7 @@ Return ONLY a valid JSON array with no other text, markdown, or explanation:
 [{"name":"LAST, FIRST","velo_delivery":true,"command":false,"pitch_design":false,"intensity":"M"}]
 
 Rules:
-- name: use exactly what is written, preserve capitalization
+- name: ALWAYS uppercase, format as "LAST, INITIAL" with exactly one space after the comma. NO trailing period after the initial. For "HALL O." or "HALL,O" or "Hall, O." → output exactly "HALL, O". For full first names → output "LAST, FIRSTNAME" still uppercase.
 - velo_delivery, command, pitch_design: true if there is an X or checkmark, false if blank
 - intensity: exactly "L", "M", or "H" — null if genuinely unreadable
 - Include every player row visible in the table`;
@@ -567,7 +567,7 @@ function getTableRows() {
         const activeBtn = tr.querySelector('.int-btn[class*="active-"]');
         const im = activeBtn ? activeBtn.className.match(/active-([LMH])/) : null;
         return {
-            name:          tr.querySelector('.pname').value.trim(),
+            name:          normName(tr.querySelector('.pname').value),
             velo_delivery: tr.querySelector('.ck-vd').checked,
             command:       tr.querySelector('.ck-cmd').checked,
             pitch_design:  tr.querySelector('.ck-pd').checked,
@@ -600,6 +600,8 @@ async function saveSession() {
         let data;
         try { data = JSON.parse(b64dec(content)); } catch { data = { sessions: [] }; }
         if (!Array.isArray(data.sessions)) data.sessions = [];
+        // Normalize names in existing sessions so the on-disk file gradually cleans up.
+        data.sessions.forEach(s => s.players.forEach(p => p.name = normName(p.name)));
 
         data.sessions.push({ id: `${date}-${Date.now()}`, date, players });
         data.sessions.sort((a, b) => a.date.localeCompare(b.date));
@@ -664,6 +666,8 @@ async function loadData() {
             db = await res.json();
         }
         if (!Array.isArray(db.sessions)) db.sessions = [];
+        // Normalize all names in-memory so legacy variants like "HALL, O." and "HALL,O" merge.
+        db.sessions.forEach(s => s.players.forEach(p => p.name = normName(p.name)));
         updatePlayerFilter();
         renderHistory();
     } catch (err) {
@@ -935,6 +939,18 @@ function fmtDate(s) {
 }
 function b64enc(str) { return btoa(unescape(encodeURIComponent(str))); }
 function b64dec(str) { return decodeURIComponent(escape(atob(str))); }
+
+// Normalize player names so "HALL, O", "HALL,O", "HALL, O.", "hall, o" all collapse
+// to one canonical form: uppercase, trimmed, single space after comma, no trailing period.
+function normName(n) {
+    return String(n || '')
+        .trim()
+        .toUpperCase()
+        .replace(/\s+/g, ' ')
+        .replace(/\s*,\s*/g, ', ')
+        .replace(/\.+$/, '')
+        .replace(/\s+$/, '');
+}
 </script>
 </body>
 </html>
