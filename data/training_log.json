@@ -522,7 +522,7 @@
           "velo_delivery": false,
           "command": false,
           "pitch_design": false,
-          "intensity": "H"
+          "intensity": "L"
         },
         {
           "name": "HALL, R",
