@@ -619,7 +619,7 @@
           "velo_delivery": false,
           "command": false,
           "pitch_design": false,
-          "intensity": "M"
+          "intensity": "H"
         },
         {
           "name": "HALL, R",
