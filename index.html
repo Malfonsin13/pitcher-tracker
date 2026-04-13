@@ -819,9 +819,10 @@ function drawAllChart(stats) {
             { label: 'Low',      data: stats.map(p => p.L), backgroundColor: '#2a9d8f', stack: 'a' },
           ]
         : [
-            { label: 'Velo/Delivery', data: stats.map(p => p.vd),  backgroundColor: '#3b82f6', stack: 'a' },
-            { label: 'Command',       data: stats.map(p => p.cmd), backgroundColor: '#ec4899', stack: 'a' },
-            { label: 'Pitch Design',  data: stats.map(p => p.pd),  backgroundColor: '#8b5cf6', stack: 'a' },
+            { label: 'Velo/Delivery', data: stats.map(p => p.total > 0 ? +(p.vd  / p.total * 100).toFixed(1) : 0), backgroundColor: '#3b82f6', stack: 'a' },
+            { label: 'Command',       data: stats.map(p => p.total > 0 ? +(p.cmd / p.total * 100).toFixed(1) : 0), backgroundColor: '#ec4899', stack: 'a' },
+            { label: 'Pitch Design',  data: stats.map(p => p.total > 0 ? +(p.pd  / p.total * 100).toFixed(1) : 0), backgroundColor: '#8b5cf6', stack: 'a' },
+            { label: 'No Focus',      data: stats.map(p => p.total > 0 ? +((p.total - p.vd - p.cmd - p.pd) / p.total * 100).toFixed(1) : 0), backgroundColor: '#d1d5db', stack: 'a' },
           ];
     charts.all = new Chart(ctx, {
         type: 'bar',
@@ -830,9 +831,20 @@ function drawAllChart(stats) {
             indexAxis: 'y',
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 14 } } },
+            plugins: {
+                legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 14 } },
+                tooltip: {
+                    callbacks: {
+                        label: (item) => isIntent
+                            ? ` ${item.dataset.label}: ${item.raw}`
+                            : ` ${item.dataset.label}: ${item.raw}%`
+                    }
+                }
+            },
             scales: {
-                x: { stacked: true, ticks: { precision: 1 }, title: { display: true, text: 'Sessions' } },
+                x: isIntent
+                    ? { stacked: true, ticks: { stepSize: 1 }, title: { display: true, text: 'Sessions' } }
+                    : { stacked: true, min: 0, max: 100, ticks: { callback: v => v + '%' }, title: { display: true, text: '% of Sessions' } },
                 y: { stacked: true },
             }
         }
