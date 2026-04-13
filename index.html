@@ -948,9 +948,9 @@ function renderPlayerDetail(name, sessions, el) {
             <div>
                 <div class="card-title">Focus Areas</div>
                 <div class="focus-pills">
-                    <span class="focus-pill fp-velo">Velo/Del: ${focusCounts.vd.toFixed(1)}</span>
-                    <span class="focus-pill fp-cmd">Command: ${focusCounts.cmd.toFixed(1)}</span>
-                    <span class="focus-pill fp-pd">Pitch Design: ${focusCounts.pd.toFixed(1)}</span>
+                    <span class="focus-pill fp-velo">Velo/Del: ${ps.total > 0 ? (focusCounts.vd / ps.total * 100).toFixed(1) : 0}%</span>
+                    <span class="focus-pill fp-cmd">Command: ${ps.total > 0 ? (focusCounts.cmd / ps.total * 100).toFixed(1) : 0}%</span>
+                    <span class="focus-pill fp-pd">Pitch Design: ${ps.total > 0 ? (focusCounts.pd / ps.total * 100).toFixed(1) : 0}%</span>
                 </div>
                 <div class="chart-box" style="margin-top:12px"><canvas id="chart-focus"></canvas></div>
             </div>
@@ -982,12 +982,16 @@ function renderPlayerDetail(name, sessions, el) {
         charts.focus = new Chart(cf, {
             type: 'doughnut',
             data: {
-                labels: ['Velo/Delivery', 'Command', 'Pitch Design'],
-                datasets: [{ data: [focusCounts.vd, focusCounts.cmd, focusCounts.pd],
-                    backgroundColor: ['#3b82f6','#ec4899','#8b5cf6'], borderWidth: 0 }]
+                labels: ['Velo/Delivery', 'Command', 'Pitch Design', 'No Focus'],
+                datasets: [{ data: [focusCounts.vd, focusCounts.cmd, focusCounts.pd, ps.total - focusCounts.vd - focusCounts.cmd - focusCounts.pd],
+                    backgroundColor: ['#3b82f6','#ec4899','#8b5cf6','#d1d5db'], borderWidth: 0 }]
             },
             options: { responsive: true, maintainAspectRatio: false,
-                plugins: { legend: { position: 'right', labels: { font: { size: 10 }, boxWidth: 12 } } } }
+                plugins: {
+                    legend: { position: 'right', labels: { font: { size: 10 }, boxWidth: 12 } },
+                    tooltip: { callbacks: { label: (item) => ` ${item.label}: ${ps.total > 0 ? (item.raw / ps.total * 100).toFixed(1) : 0}%` } }
+                }
+            }
         });
     }
 }
