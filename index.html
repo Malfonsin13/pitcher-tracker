@@ -832,7 +832,7 @@ function drawAllChart(stats) {
             maintainAspectRatio: false,
             plugins: { legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 14 } } },
             scales: {
-                x: { stacked: true, ticks: { stepSize: 1 }, title: { display: true, text: 'Sessions' } },
+                x: { stacked: true, ticks: { precision: 1 }, title: { display: true, text: 'Sessions' } },
                 y: { stacked: true },
             }
         }
@@ -881,11 +881,17 @@ function renderPlayerDetail(name, sessions, el) {
         .filter(s => s.players.some(p => p.name === name))
         .sort((a, b) => b.date.localeCompare(a.date));
 
-    const focusCounts = {
-        vd:  sessions.filter(s => s.players.some(p => p.name === name && p.velo_delivery)).length,
-        cmd: sessions.filter(s => s.players.some(p => p.name === name && p.command)).length,
-        pd:  sessions.filter(s => s.players.some(p => p.name === name && p.pitch_design)).length,
-    };
+    const focusCounts = { vd: 0, cmd: 0, pd: 0 };
+    sessions.forEach(s => {
+        const p = s.players.find(p => p.name === name);
+        if (!p) return;
+        const n = (p.velo_delivery ? 1 : 0) + (p.command ? 1 : 0) + (p.pitch_design ? 1 : 0);
+        if (n > 0) {
+            if (p.velo_delivery) focusCounts.vd  += 1 / n;
+            if (p.command)       focusCounts.cmd += 1 / n;
+            if (p.pitch_design)  focusCounts.pd  += 1 / n;
+        }
+    });
 
     const intColor = { H: '#e63946', M: '#f4a261', L: '#2a9d8f' };
 
@@ -930,9 +936,9 @@ function renderPlayerDetail(name, sessions, el) {
             <div>
                 <div class="card-title">Focus Areas</div>
                 <div class="focus-pills">
-                    <span class="focus-pill fp-velo">Velo/Del: ${focusCounts.vd}</span>
-                    <span class="focus-pill fp-cmd">Command: ${focusCounts.cmd}</span>
-                    <span class="focus-pill fp-pd">Pitch Design: ${focusCounts.pd}</span>
+                    <span class="focus-pill fp-velo">Velo/Del: ${focusCounts.vd.toFixed(1)}</span>
+                    <span class="focus-pill fp-cmd">Command: ${focusCounts.cmd.toFixed(1)}</span>
+                    <span class="focus-pill fp-pd">Pitch Design: ${focusCounts.pd.toFixed(1)}</span>
                 </div>
                 <div class="chart-box" style="margin-top:12px"><canvas id="chart-focus"></canvas></div>
             </div>
@@ -984,9 +990,12 @@ function playerStats(name, sessions) {
         if (p.intensity === 'H') H++;
         else if (p.intensity === 'M') M++;
         else if (p.intensity === 'L') L++;
-        if (p.velo_delivery) vd++;
-        if (p.command)       cmd++;
-        if (p.pitch_design)  pd++;
+        const n = (p.velo_delivery ? 1 : 0) + (p.command ? 1 : 0) + (p.pitch_design ? 1 : 0);
+        if (n > 0) {
+            if (p.velo_delivery) vd  += 1 / n;
+            if (p.command)       cmd += 1 / n;
+            if (p.pitch_design)  pd  += 1 / n;
+        }
     });
     return { name, H, M, L, total, vd, cmd, pd };
 }
