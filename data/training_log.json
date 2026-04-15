@@ -758,7 +758,7 @@
           "velo_delivery": false,
           "command": false,
           "pitch_design": false,
-          "intensity": "L"
+          "intensity": "H"
         },
         {
           "name": "GUZMAN",
