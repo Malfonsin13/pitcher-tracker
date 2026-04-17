@@ -1132,7 +1132,7 @@
           "velo_delivery": false,
           "command": false,
           "pitch_design": false,
-          "intensity": "L"
+          "intensity": "H"
         },
         {
           "name": "GRANT",
@@ -1153,14 +1153,14 @@
           "velo_delivery": true,
           "command": false,
           "pitch_design": false,
-          "intensity": "M"
+          "intensity": "H"
         },
         {
           "name": "VALDEZ",
           "velo_delivery": false,
           "command": false,
           "pitch_design": true,
-          "intensity": "M"
+          "intensity": "H"
         }
       ]
     }
