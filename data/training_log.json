@@ -1357,6 +1357,103 @@
           "intensity": "M"
         }
       ]
+    },
+    {
+      "id": "2026-04-19-1776731597738",
+      "date": "2026-04-19",
+      "players": [
+        {
+          "name": "HALL, O",
+          "velo_delivery": false,
+          "command": false,
+          "pitch_design": false,
+          "intensity": "L"
+        },
+        {
+          "name": "BUSHELL",
+          "velo_delivery": false,
+          "command": false,
+          "pitch_design": false,
+          "intensity": "L"
+        },
+        {
+          "name": "COBA",
+          "velo_delivery": false,
+          "command": false,
+          "pitch_design": false,
+          "intensity": "L"
+        },
+        {
+          "name": "CRUZ",
+          "velo_delivery": false,
+          "command": false,
+          "pitch_design": false,
+          "intensity": "L"
+        },
+        {
+          "name": "RODRIGUEZ",
+          "velo_delivery": false,
+          "command": false,
+          "pitch_design": false,
+          "intensity": "L"
+        },
+        {
+          "name": "HALL, R",
+          "velo_delivery": false,
+          "command": false,
+          "pitch_design": false,
+          "intensity": "L"
+        },
+        {
+          "name": "HEISHMAN",
+          "velo_delivery": false,
+          "command": false,
+          "pitch_design": false,
+          "intensity": "L"
+        },
+        {
+          "name": "ALEWINE",
+          "velo_delivery": false,
+          "command": false,
+          "pitch_design": false,
+          "intensity": "L"
+        },
+        {
+          "name": "CARABALLO",
+          "velo_delivery": false,
+          "command": false,
+          "pitch_design": false,
+          "intensity": "H"
+        },
+        {
+          "name": "GRANT",
+          "velo_delivery": false,
+          "command": false,
+          "pitch_design": false,
+          "intensity": "L"
+        },
+        {
+          "name": "GUACACHE",
+          "velo_delivery": false,
+          "command": false,
+          "pitch_design": false,
+          "intensity": "L"
+        },
+        {
+          "name": "GUZMAN",
+          "velo_delivery": false,
+          "command": false,
+          "pitch_design": false,
+          "intensity": "M"
+        },
+        {
+          "name": "VALDEZ",
+          "velo_delivery": false,
+          "command": false,
+          "pitch_design": false,
+          "intensity": "M"
+        }
+      ]
     }
   ]
 }
