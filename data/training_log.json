@@ -1748,7 +1748,7 @@
     },
     {
       "id": "2026-04-22-1776962768976",
-      "date": "2026-04-22",
+      "date": "2026-04-23",
       "players": [
         {
           "name": "HALL, O",
@@ -1811,7 +1811,7 @@
           "velo_delivery": false,
           "command": false,
           "pitch_design": false,
-          "intensity": "M"
+          "intensity": "H"
         },
         {
           "name": "GRANT",
