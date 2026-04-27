@@ -100,7 +100,15 @@
         .player-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(185px, 1fr)); gap: 12px; margin-bottom: 22px; }
         .player-card { background: white; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); padding: 15px; cursor: pointer; transition: all 0.18s; border: 2px solid transparent; }
         .player-card:hover { box-shadow: 0 3px 12px rgba(0,0,0,0.13); border-color: #1e3a5f; }
-        .pc-name { font-weight: 700; font-size: 0.9rem; margin-bottom: 5px; }
+        .pc-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px; }
+        .pc-hide-btn { background: none; border: none; cursor: pointer; font-size: 0.68rem; color: #ccc; padding: 0; line-height: 1; opacity: 0; transition: opacity 0.15s; white-space: nowrap; }
+        .player-card:hover .pc-hide-btn { opacity: 1; }
+        .pc-hide-btn:hover { color: #e63946 !important; }
+        .pc-hidden { background: #f7f8fa !important; border: 2px dashed #dde1e7 !important; opacity: 0.65; cursor: default !important; box-shadow: none !important; }
+        .pc-hidden .pc-hide-btn { opacity: 1; color: #3b82f6; font-size: 0.7rem; }
+        .hidden-pill { display: inline-block; cursor: pointer; font-size: 0.75rem; color: #999; background: #f0f0f0; border-radius: 20px; padding: 3px 10px; margin-bottom: 10px; user-select: none; }
+        .hidden-pill:hover { background: #e5e5e5; color: #555; }
+        .pc-name { font-weight: 700; font-size: 0.9rem; }
         .pc-sessions { font-size: 0.75rem; color: #999; margin-bottom: 9px; }
         .int-bar { height: 7px; border-radius: 4px; overflow: hidden; display: flex; }
         .int-bar-h { background: #e63946; }
@@ -352,7 +360,23 @@ let selectedFile = null;
 let db = { sessions: [] };
 let editingSessionId = null;  // null = new session; otherwise the id we're editing
 const charts = {};
-let historyChartMode = 'intent'; // 'intent' or 'focus'
+let historyChartMode  = 'intent'; // 'intent' or 'focus'
+let showHiddenMode    = false;
+
+function getHidden() {
+    try { return new Set(JSON.parse(localStorage.getItem(LS.hz) || '[]')); } catch { return new Set(); }
+}
+function setHidden(s) { localStorage.setItem(LS.hz, JSON.stringify([...s])); }
+function toggleHidePlayer(name) {
+    const h = getHidden();
+    if (h.has(name)) h.delete(name); else h.add(name);
+    setHidden(h);
+    renderHistory();
+}
+function toggleShowHiddenMode() {
+    showHiddenMode = !showHiddenMode;
+    renderHistory();
+}
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -379,7 +403,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ─── Config (localStorage) ────────────────────────────────────────────────────
-const LS = { gk: 'ptt_gk', gt: 'ptt_gt', go: 'ptt_go', gr: 'ptt_gr' };
+const LS = { gk: 'ptt_gk', gt: 'ptt_gt', go: 'ptt_go', gr: 'ptt_gr', hz: 'ptt_hidden' };
 function cfg() {
     return {
         geminiKey: EMBEDDED.geminiKey || localStorage.getItem(LS.gk) || '',
@@ -795,10 +819,22 @@ function renderAllPlayers(sessions, el) {
     const teamCmd   = stats.reduce((s, p) => s + p.cmd, 0);
     const teamPd    = stats.reduce((s, p) => s + p.pd, 0);
 
-    // Dynamic chart height
-    const chartH = Math.max(220, names.length * 34);
+    // Split visible vs hidden
+    const hidden      = getHidden();
+    const visibleStats = stats.filter(p => !hidden.has(p.name));
+    const hiddenStats  = stats.filter(p =>  hidden.has(p.name));
 
-    const isIntent = historyChartMode === 'intent';
+    // Dynamic chart height (based on visible players only)
+    const chartH = Math.max(220, visibleStats.length * 34);
+
+    const isIntent    = historyChartMode === 'intent';
+    const hiddenPill  = hiddenStats.length > 0
+        ? `<div class="hidden-pill" onclick="toggleShowHiddenMode()">${showHiddenMode ? '▲ Done managing' : `● ${hiddenStats.length} hidden`}</div>`
+        : '';
+    const hiddenCards = showHiddenMode
+        ? hiddenStats.map(ps => playerCardHTML(ps, true)).join('')
+        : '';
+
     el.innerHTML = `
         <div style="display:flex;gap:20px;margin-bottom:22px;">
             <div style="flex:1">
@@ -823,8 +859,10 @@ function renderAllPlayers(sessions, el) {
             </div>
         </div>
         <div class="card-title" style="margin-bottom:12px">Player Summary — click a card for detail</div>
+        ${hiddenPill}
         <div class="player-grid">
-            ${stats.map(ps => playerCardHTML(ps)).join('')}
+            ${visibleStats.map(ps => playerCardHTML(ps)).join('')}
+            ${hiddenCards}
         </div>
     `;
 
@@ -864,7 +902,8 @@ function renderAllPlayers(sessions, el) {
         });
     }
 
-    drawAllChart(stats);
+    _allStatsCache = visibleStats;
+    drawAllChart(visibleStats);
 }
 
 function drawAllChart(stats) {
@@ -922,11 +961,23 @@ function setHistoryChartMode(mode) {
     drawAllChart(_allStatsCache);
 }
 
-function playerCardHTML(ps) {
-    const t = ps.total || 1; // avoid divide-by-zero
+function playerCardHTML(ps, isHidden = false) {
+    if (isHidden) {
+        return `
+        <div class="player-card pc-hidden">
+            <div class="pc-card-header">
+                <div class="pc-name">${esc(ps.name)}</div>
+                <button class="pc-hide-btn" onclick="toggleHidePlayer('${esc(ps.name)}')" title="Unhide">↩ Unhide</button>
+            </div>
+            <div class="pc-sessions">${ps.total} session${ps.total !== 1 ? 's' : ''}</div>
+        </div>`;
+    }
     return `
         <div class="player-card" onclick="selectPlayer('${esc(ps.name)}')">
-            <div class="pc-name">${esc(ps.name)}</div>
+            <div class="pc-card-header">
+                <div class="pc-name">${esc(ps.name)}</div>
+                <button class="pc-hide-btn" onclick="event.stopPropagation(); toggleHidePlayer('${esc(ps.name)}')" title="Hide player">Hide</button>
+            </div>
             <div class="pc-sessions">${ps.total} session${ps.total !== 1 ? 's' : ''}</div>
             <div class="int-bar">
                 <div class="int-bar-h" style="flex:${ps.H}"></div>
