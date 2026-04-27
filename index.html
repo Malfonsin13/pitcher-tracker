@@ -563,6 +563,11 @@ function fileToBase64(file) {
 
 // ─── Confirmation table ───────────────────────────────────────────────────────
 function renderConfirmTable(players) {
+    // Always reset date to today when the confirmation form appears
+    const _d = new Date();
+    document.getElementById('session-date').value =
+        `${_d.getFullYear()}-${String(_d.getMonth()+1).padStart(2,'0')}-${String(_d.getDate()).padStart(2,'0')}`;
+
     const tbody = document.getElementById('confirm-tbody');
     tbody.innerHTML = '';
     players.forEach(p => addPlayerRow(p));
@@ -781,11 +786,30 @@ function renderAllPlayers(sessions, el) {
     const stats = names.map(n => playerStats(n, sessions));
     _allStatsCache = stats;
 
+    // Team-wide aggregates
+    const teamTotal = stats.reduce((s, p) => s + p.total, 0);
+    const teamH     = stats.reduce((s, p) => s + p.H, 0);
+    const teamM     = stats.reduce((s, p) => s + p.M, 0);
+    const teamL     = stats.reduce((s, p) => s + p.L, 0);
+    const teamVd    = stats.reduce((s, p) => s + p.vd, 0);
+    const teamCmd   = stats.reduce((s, p) => s + p.cmd, 0);
+    const teamPd    = stats.reduce((s, p) => s + p.pd, 0);
+
     // Dynamic chart height
     const chartH = Math.max(220, names.length * 34);
 
     const isIntent = historyChartMode === 'intent';
     el.innerHTML = `
+        <div style="display:flex;gap:20px;margin-bottom:22px;">
+            <div style="flex:1">
+                <div class="card-title">Team Intent</div>
+                <div class="chart-box"><canvas id="chart-team-int"></canvas></div>
+            </div>
+            <div style="flex:1">
+                <div class="card-title">Team Focus Areas</div>
+                <div class="chart-box"><canvas id="chart-team-focus"></canvas></div>
+            </div>
+        </div>
         <div style="margin-bottom:22px;">
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
                 <div class="card-title" id="all-chart-title" style="margin-bottom:0">${isIntent ? 'Intent Distribution' : 'Focus Area Distribution'} — All Players</div>
@@ -803,6 +827,42 @@ function renderAllPlayers(sessions, el) {
             ${stats.map(ps => playerCardHTML(ps)).join('')}
         </div>
     `;
+
+    // Team Intent donut
+    destroyChart('teamInt');
+    const cti = document.getElementById('chart-team-int');
+    if (cti) {
+        charts.teamInt = new Chart(cti, {
+            type: 'doughnut',
+            data: {
+                labels: ['High', 'Moderate', 'Low'],
+                datasets: [{ data: [teamH, teamM, teamL],
+                    backgroundColor: ['#e63946','#f4a261','#2a9d8f'], borderWidth: 0 }]
+            },
+            options: { responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { position: 'right', labels: { font: { size: 10 }, boxWidth: 12 } } } }
+        });
+    }
+
+    // Team Focus donut (% of total sessions)
+    destroyChart('teamFocus');
+    const ctf = document.getElementById('chart-team-focus');
+    if (ctf) {
+        charts.teamFocus = new Chart(ctf, {
+            type: 'doughnut',
+            data: {
+                labels: ['Velo/Delivery', 'Command', 'Pitch Design', 'No Focus'],
+                datasets: [{ data: [teamVd, teamCmd, teamPd, teamTotal - teamVd - teamCmd - teamPd],
+                    backgroundColor: ['#3b82f6','#ec4899','#8b5cf6','#d1d5db'], borderWidth: 0 }]
+            },
+            options: { responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'right', labels: { font: { size: 10 }, boxWidth: 12 } },
+                    tooltip: { callbacks: { label: (item) => ` ${item.label}: ${teamTotal > 0 ? (item.raw / teamTotal * 100).toFixed(1) : 0}%` } }
+                }
+            }
+        });
+    }
 
     drawAllChart(stats);
 }
