@@ -3366,7 +3366,7 @@
       "date": "2026-05-12",
       "players": [
         {
-          "name": "HALL",
+          "name": "HALL, O",
           "velo_delivery": true,
           "command": false,
           "pitch_design": false,
@@ -3463,7 +3463,7 @@
       "date": "2026-05-13",
       "players": [
         {
-          "name": "HALL",
+          "name": "HALL, O",
           "velo_delivery": false,
           "command": true,
           "pitch_design": false,
@@ -3498,7 +3498,7 @@
           "intensity": "M"
         },
         {
-          "name": "ALENWINE",
+          "name": "ALEWINE",
           "velo_delivery": false,
           "command": true,
           "pitch_design": false,
@@ -3859,7 +3859,7 @@
           "intensity": "H"
         },
         {
-          "name": "ROSELL",
+          "name": "ROSSELL",
           "velo_delivery": false,
           "command": false,
           "pitch_design": false,
