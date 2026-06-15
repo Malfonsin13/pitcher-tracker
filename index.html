@@ -146,6 +146,15 @@
         .tl-focus { color: #555; flex: 1; }
         .tl-int { font-weight: 700; font-size: 0.75rem; }
 
+        /* ── Compliance flags ── */
+        .flag-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; border-radius: 8px; margin-bottom: 6px; font-size: 0.82rem; }
+        .flag-row .fr-name { font-weight: 700; }
+        .flag-row .fr-detail { font-size: 0.76rem; opacity: 0.92; }
+        .flag-red   { background: #fde8ea; color: #b91c2c; }
+        .flag-amber { background: #fff4e5; color: #b45309; }
+        .flag-green { background: #d1fae5; color: #065f46; }
+        .compliance-chip { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 9px; font-size: 0.82rem; font-weight: 600; margin-bottom: 16px; }
+
         /* ── All players chart ── */
         .all-chart-box { position: relative; }
         .chart-mode-toggle { display: inline-flex; background: #f0f0f3; border-radius: 8px; padding: 3px; gap: 2px; }
@@ -362,6 +371,11 @@ let editingSessionId = null;  // null = new session; otherwise the id we're edit
 const charts = {};
 let historyChartMode  = 'intent'; // 'intent' or 'focus'
 let showHiddenMode    = false;
+let trendWindow       = 14;        // 14 | 30 | null (all) — days back from latest session
+let trendUnit         = 'count';   // 'count' or 'pct'
+
+// Focus-area colors, shared across trend / day-type charts
+const FOCUS_COLORS = { vd: '#3b82f6', cmd: '#ec4899', pd: '#8b5cf6', none: '#9ca3af' };
 
 function getHidden() {
     try { return new Set(JSON.parse(localStorage.getItem(LS.hz) || '[]')); } catch { return new Set(); }
@@ -858,6 +872,35 @@ function renderAllPlayers(sessions, el) {
                 <canvas id="chart-all"></canvas>
             </div>
         </div>
+
+        <div style="margin-bottom:22px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
+                <div class="card-title" style="margin-bottom:0">Focus Area Trend — ${trendWindowLabel()}</div>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <div class="chart-mode-toggle" role="tablist">
+                        <button type="button" class="cmt-btn ${trendWindow===14?'active':''}" onclick="setTrendWindow(14)">14d</button>
+                        <button type="button" class="cmt-btn ${trendWindow===30?'active':''}" onclick="setTrendWindow(30)">30d</button>
+                        <button type="button" class="cmt-btn ${trendWindow==null?'active':''}" onclick="setTrendWindow(null)">All</button>
+                    </div>
+                    <div class="chart-mode-toggle" role="tablist">
+                        <button type="button" class="cmt-btn ${trendUnit==='count'?'active':''}" onclick="setTrendUnit('count')"># Pitchers</button>
+                        <button type="button" class="cmt-btn ${trendUnit==='pct'?'active':''}" onclick="setTrendUnit('pct')">% Staff</button>
+                    </div>
+                </div>
+            </div>
+            <div class="all-chart-box" style="height:260px"><canvas id="chart-trend"></canvas></div>
+        </div>
+
+        <div style="margin-bottom:22px;">
+            <div class="card-title" style="margin-bottom:10px">What They Work On — by Day Type</div>
+            <div class="all-chart-box" style="height:240px"><canvas id="chart-daytype"></canvas></div>
+        </div>
+
+        <div style="margin-bottom:22px;">
+            <div class="card-title" style="margin-bottom:12px">Compliance &amp; Focus-Declaration Flags — ${trendWindowLabel()}</div>
+            <div id="compliance-block"></div>
+        </div>
+
         <div class="card-title" style="margin-bottom:12px">Player Summary — click a card for detail</div>
         ${hiddenPill}
         <div class="player-grid">
@@ -904,6 +947,140 @@ function renderAllPlayers(sessions, el) {
 
     _allStatsCache = visibleStats;
     drawAllChart(visibleStats);
+
+    _allSessionsCache = sessions;
+    drawTrendChart();
+    drawDayTypeChart();
+    renderCompliance();
+}
+
+// ── Trend / day-type / compliance section (team level) ─────────────────────────
+let _allSessionsCache = [];
+
+function trendWindowLabel() {
+    return trendWindow == null ? 'All Sessions' : `Last ${trendWindow} Days`;
+}
+
+function drawTrendChart() {
+    destroyChart('trend');
+    const ctx = document.getElementById('chart-trend');
+    if (!ctx) return;
+    const ws = windowSessions(_allSessionsCache);
+    const asPct = trendUnit === 'pct';
+    const t = focusTrendSeries(ws, asPct);
+    const mk = (label, color, data, dash) => ({
+        label, data, borderColor: color, backgroundColor: color,
+        borderDash: dash, tension: 0.3, pointRadius: 2, borderWidth: 2, spanGaps: true,
+    });
+    charts.trend = new Chart(ctx, {
+        type: 'line',
+        data: { labels: t.labels, datasets: [
+            mk('Velo/Delivery', FOCUS_COLORS.vd,   t.vd,   []),
+            mk('Command',       FOCUS_COLORS.cmd,  t.cmd,  [6, 3]),
+            mk('Pitch Design',  FOCUS_COLORS.pd,   t.pd,   [2, 2]),
+            mk('No Focus',      FOCUS_COLORS.none, t.none, [1, 3]),
+        ]},
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 14 } },
+                tooltip: { callbacks: { label: i => ` ${i.dataset.label}: ${i.raw}${asPct ? '%' : ''}` } }
+            },
+            scales: {
+                y: asPct
+                    ? { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' }, title: { display: true, text: '% of staff' } }
+                    : { beginAtZero: true, ticks: { stepSize: 1, precision: 0 }, title: { display: true, text: '# pitchers' } }
+            }
+        }
+    });
+}
+
+function drawDayTypeChart() {
+    destroyChart('daytype');
+    const ctx = document.getElementById('chart-daytype');
+    if (!ctx) return;
+    const f = focusByIntensity(windowSessions(_allSessionsCache));
+    charts.daytype = new Chart(ctx, {
+        type: 'bar',
+        data: { labels: ['Light days', 'Moderate days', 'High days'], datasets: [
+            { label: 'Velo/Delivery', data: f.vd,  backgroundColor: FOCUS_COLORS.vd },
+            { label: 'Command',       data: f.cmd, backgroundColor: FOCUS_COLORS.cmd },
+            { label: 'Pitch Design',  data: f.pd,  backgroundColor: FOCUS_COLORS.pd },
+        ]},
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 14 } },
+                tooltip: { callbacks: { label: i => ` ${i.dataset.label}: ${i.raw}%` } }
+            },
+            scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' }, title: { display: true, text: '% of focus picks' } } }
+        }
+    });
+}
+
+function renderCompliance() {
+    const block = document.getElementById('compliance-block');
+    if (!block) return;
+    const ws = windowSessions(_allSessionsCache);
+    const flags = complianceFlags(ws);
+    const order = { red: 0, amber: 1, green: 2 };
+    flags.sort((a, b) => order[a.level] - order[b.level] || b.noFocusStreak - a.noFocusStreak || a.name.localeCompare(b.name));
+
+    const flagged = flags.filter(f => f.level !== 'green');
+    const greens  = flags.filter(f => f.level === 'green');
+
+    // Declared focus in the most recent session of the window
+    const last = ws[ws.length - 1];
+    let declared = 0, lastTotal = 0;
+    if (last) {
+        lastTotal = last.players.length;
+        declared  = last.players.filter(p => p.velo_delivery || p.command || p.pitch_design).length;
+    }
+    // Team focus rate over the window (player-sessions with any focus / total)
+    let withFocus = 0, totalPS = 0;
+    ws.forEach(s => s.players.forEach(p => {
+        totalPS++;
+        if (p.velo_delivery || p.command || p.pitch_design) withFocus++;
+    }));
+    const focusRate = totalPS ? Math.round(withFocus / totalPS * 100) : 0;
+
+    const rowHTML = f => {
+        const since = f.daysSince == null ? 'never declared focus'
+            : f.lastFocusDate === latestSessionDate(ws) ? 'declared focus this session'
+            : `${f.daysSince} day${f.daysSince === 1 ? '' : 's'} since last focus`;
+        const icon = f.level === 'red' ? '⚑' : f.level === 'amber' ? '▲' : '✓';
+        const streakTxt = f.noFocusStreak > 0
+            ? `No focus in last ${f.noFocusStreak} session${f.noFocusStreak === 1 ? '' : 's'} · `
+            : '';
+        return `<div class="flag-row flag-${f.level}">
+            <span class="fr-name">${icon} ${esc(f.name)}</span>
+            <span class="fr-detail">${streakTxt}${since}</span>
+        </div>`;
+    };
+
+    block.innerHTML = `
+        <div class="stats-row">
+            <div class="stat-chip"><div class="val">${declared}/${lastTotal}</div><div class="lbl">Declared (last session)</div></div>
+            <div class="stat-chip ${flagged.length ? 'h-chip' : 'l-chip'}"><div class="val">${flagged.length}</div><div class="lbl">Flagged Pitchers</div></div>
+            <div class="stat-chip"><div class="val">${focusRate}%</div><div class="lbl">Team Focus Rate</div></div>
+        </div>
+        ${flagged.map(rowHTML).join('')}
+        ${greens.length ? `<div class="flag-row flag-green"><span class="fr-name">✓ ${greens.length} pitcher${greens.length === 1 ? '' : 's'} on track</span><span class="fr-detail">declared focus recently</span></div>` : ''}
+    `;
+}
+
+function setTrendWindow(days) {
+    trendWindow = days;
+    renderHistory();
+}
+function setTrendUnit(unit) {
+    if (unit === trendUnit) return;
+    trendUnit = unit;
+    document.querySelectorAll('.cmt-btn').forEach(b => {
+        if (b.textContent.includes('Pitchers')) b.classList.toggle('active', unit === 'count');
+        if (b.textContent.includes('Staff'))    b.classList.toggle('active', unit === 'pct');
+    });
+    drawTrendChart();
 }
 
 function drawAllChart(stats) {
@@ -955,9 +1132,11 @@ function setHistoryChartMode(mode) {
     historyChartMode = mode;
     const title = document.getElementById('all-chart-title');
     if (title) title.textContent = (mode === 'intent' ? 'Intent Distribution' : 'Focus Area Distribution') + ' — All Players';
-    document.querySelectorAll('.cmt-btn').forEach(b => b.classList.remove('active'));
-    const btns = document.querySelectorAll('.cmt-btn');
-    if (btns.length === 2) btns[mode === 'intent' ? 0 : 1].classList.add('active');
+    document.querySelectorAll('.cmt-btn').forEach(b => {
+        const oc = b.getAttribute('onclick') || '';
+        if (oc.includes("setHistoryChartMode('intent')")) b.classList.toggle('active', mode === 'intent');
+        if (oc.includes("setHistoryChartMode('focus')"))  b.classList.toggle('active', mode === 'focus');
+    });
     drawAllChart(_allStatsCache);
 }
 
@@ -1032,9 +1211,19 @@ function renderPlayerDetail(name, sessions, el) {
             </div>`;
     }).join('');
 
+    const cflag = complianceFlags(windowSessions(sessions)).find(f => f.name === name);
+    const chipClass = cflag ? `flag-${cflag.level}` : 'flag-green';
+    const chipTxt = !cflag ? ''
+        : cflag.daysSince == null ? 'No focus area ever declared'
+        : cflag.noFocusStreak === 0 ? `On track — last declared focus ${cflag.daysSince === 0 ? 'this session' : cflag.daysSince + 'd ago'}`
+        : `No focus in last ${cflag.noFocusStreak} session${cflag.noFocusStreak === 1 ? '' : 's'} · ${cflag.daysSince}d since last focus`;
+    const chipIcon = cflag && cflag.level === 'red' ? '⚑' : cflag && cflag.level === 'amber' ? '▲' : '✓';
+
     el.innerHTML = `
         <div class="back-link" onclick="clearFilters()">← All Players</div>
         <div class="detail-name">${esc(name)}</div>
+
+        <div class="compliance-chip ${chipClass}">${chipIcon} ${chipTxt}</div>
 
         <div class="stats-row">
             <div class="stat-chip">
@@ -1067,9 +1256,29 @@ function renderPlayerDetail(name, sessions, el) {
             </div>
         </div>
 
+        <div style="margin-bottom:20px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
+                <div class="card-title" style="margin-bottom:0">Focus Trend — rolling 5-session mix · ${trendWindowLabel()}</div>
+                <div class="chart-mode-toggle" role="tablist">
+                    <button type="button" class="cmt-btn ${trendWindow===14?'active':''}" onclick="setTrendWindow(14)">14d</button>
+                    <button type="button" class="cmt-btn ${trendWindow===30?'active':''}" onclick="setTrendWindow(30)">30d</button>
+                    <button type="button" class="cmt-btn ${trendWindow==null?'active':''}" onclick="setTrendWindow(null)">All</button>
+                </div>
+            </div>
+            <div class="all-chart-box" style="height:220px"><canvas id="chart-ptrend"></canvas></div>
+        </div>
+
+        <div style="margin-bottom:20px;">
+            <div class="card-title" style="margin-bottom:10px">What ${esc(name)} Works On — by Day Type</div>
+            <div class="all-chart-box" style="height:220px"><canvas id="chart-pintensity"></canvas></div>
+        </div>
+
         <div class="card-title" style="margin-bottom:8px">Session History</div>
         <div>${timeline || '<div class="empty-state" style="padding:16px"><p>No sessions.</p></div>'}</div>
     `;
+
+    drawPlayerTrend(name, sessions);
+    drawPlayerDayType(name, sessions);
 
     // Intensity donut
     destroyChart('int');
@@ -1107,6 +1316,82 @@ function renderPlayerDetail(name, sessions, el) {
     }
 }
 
+// Rolling 5-session focus-mix share (%) for one player, over the active window.
+function drawPlayerTrend(name, sessions) {
+    destroyChart('pTrend');
+    const ctx = document.getElementById('chart-ptrend');
+    if (!ctx) return;
+    const rows = windowSessions(sessions)
+        .map(s => ({ date: s.date, p: s.players.find(p => p.name === name) }))
+        .filter(r => r.p);
+    const N = 5;
+    const labels = [], vd = [], cmd = [], pd = [];
+    rows.forEach((_, i) => {
+        const win = rows.slice(Math.max(0, i - N + 1), i + 1);
+        let a = 0, b = 0, c = 0;
+        win.forEach(r => {
+            const p = r.p;
+            const n = (p.velo_delivery ? 1 : 0) + (p.command ? 1 : 0) + (p.pitch_design ? 1 : 0);
+            if (!n) return;
+            if (p.velo_delivery) a += 1 / n;
+            if (p.command)       b += 1 / n;
+            if (p.pitch_design)  c += 1 / n;
+        });
+        const t = a + b + c;
+        labels.push(fmtShort(rows[i].date));
+        vd.push(t ? +(a / t * 100).toFixed(1) : 0);
+        cmd.push(t ? +(b / t * 100).toFixed(1) : 0);
+        pd.push(t ? +(c / t * 100).toFixed(1) : 0);
+    });
+    const area = (label, color, data) => ({
+        label, data, borderColor: color, backgroundColor: color + '80',
+        fill: true, stack: 's', tension: 0.3, pointRadius: 0, borderWidth: 1,
+    });
+    charts.pTrend = new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets: [
+            area('Velo/Delivery', FOCUS_COLORS.vd,  vd),
+            area('Command',       FOCUS_COLORS.cmd, cmd),
+            area('Pitch Design',  FOCUS_COLORS.pd,  pd),
+        ]},
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 14 } },
+                tooltip: { callbacks: { label: i => ` ${i.dataset.label}: ${i.raw}%` } }
+            },
+            scales: { y: { stacked: true, max: 100, ticks: { callback: v => v + '%' } } }
+        }
+    });
+}
+
+// Per-day-type focus mix for one player.
+function drawPlayerDayType(name, sessions) {
+    destroyChart('pIntensity');
+    const ctx = document.getElementById('chart-pintensity');
+    if (!ctx) return;
+    const ws = windowSessions(sessions).map(s => ({
+        players: s.players.filter(p => p.name === name)
+    }));
+    const f = focusByIntensity(ws);
+    charts.pIntensity = new Chart(ctx, {
+        type: 'bar',
+        data: { labels: ['Light days', 'Moderate days', 'High days'], datasets: [
+            { label: 'Velo/Delivery', data: f.vd,  backgroundColor: FOCUS_COLORS.vd },
+            { label: 'Command',       data: f.cmd, backgroundColor: FOCUS_COLORS.cmd },
+            { label: 'Pitch Design',  data: f.pd,  backgroundColor: FOCUS_COLORS.pd },
+        ]},
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 14 } },
+                tooltip: { callbacks: { label: i => ` ${i.dataset.label}: ${i.raw}%` } }
+            },
+            scales: { y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' }, title: { display: true, text: '% of focus picks' } } }
+        }
+    });
+}
+
 // ─── Stats helper ─────────────────────────────────────────────────────────────
 function playerStats(name, sessions) {
     let H = 0, M = 0, L = 0, total = 0, vd = 0, cmd = 0, pd = 0;
@@ -1125,6 +1410,107 @@ function playerStats(name, sessions) {
         }
     });
     return { name, H, M, L, total, vd, cmd, pd };
+}
+
+// ─── Trend / day-type / compliance helpers ─────────────────────────────────────
+// All windows anchor on the most recent session date in the data (not Date.now(),
+// since the log can lag real time).
+function latestSessionDate(sessions) {
+    return sessions.reduce((mx, s) => s.date > mx ? s.date : mx, '');
+}
+
+// Date string `days` before `anchor` (both 'YYYY-MM-DD'). Pure string→Date→string.
+function shiftDate(anchor, days) {
+    const [y, m, d] = anchor.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCDate(dt.getUTCDate() - days);
+    return dt.toISOString().slice(0, 10);
+}
+
+// Sessions within the active trend window, sorted oldest→newest.
+function windowSessions(sessions, days = trendWindow) {
+    const sorted = [...sessions].sort((a, b) => a.date.localeCompare(b.date));
+    if (days == null) return sorted;
+    const anchor = latestSessionDate(sorted);
+    if (!anchor) return sorted;
+    const from = shiftDate(anchor, days - 1);
+    return sorted.filter(s => s.date >= from);
+}
+
+// Per-day count (or %) of pitchers working each focus area, plus a "no focus" series.
+function focusTrendSeries(sessions, asPercent) {
+    const sorted = [...sessions].sort((a, b) => a.date.localeCompare(b.date));
+    const labels = [], vd = [], cmd = [], pd = [], none = [];
+    sorted.forEach(s => {
+        let nvd = 0, ncmd = 0, npd = 0, nnone = 0;
+        s.players.forEach(p => {
+            if (p.velo_delivery) nvd++;
+            if (p.command)       ncmd++;
+            if (p.pitch_design)  npd++;
+            if (!p.velo_delivery && !p.command && !p.pitch_design) nnone++;
+        });
+        const denom = s.players.length || 1;
+        const conv = v => asPercent ? +(v / denom * 100).toFixed(1) : v;
+        labels.push(fmtShort(s.date));
+        vd.push(conv(nvd)); cmd.push(conv(ncmd)); pd.push(conv(npd)); none.push(conv(nnone));
+    });
+    return { labels, vd, cmd, pd, none };
+}
+
+// Focus-area mix (% of focus picks) within each intensity bucket. Reuses the 1/n
+// credit split so a multi-focus row doesn't over-count.
+function focusByIntensity(sessions) {
+    const buckets = { L: { vd: 0, cmd: 0, pd: 0 }, M: { vd: 0, cmd: 0, pd: 0 }, H: { vd: 0, cmd: 0, pd: 0 } };
+    sessions.forEach(s => s.players.forEach(p => {
+        const b = buckets[p.intensity];
+        if (!b) return;
+        const n = (p.velo_delivery ? 1 : 0) + (p.command ? 1 : 0) + (p.pitch_design ? 1 : 0);
+        if (!n) return;
+        if (p.velo_delivery) b.vd  += 1 / n;
+        if (p.command)       b.cmd += 1 / n;
+        if (p.pitch_design)  b.pd  += 1 / n;
+    }));
+    const pct = (b, k) => { const t = b.vd + b.cmd + b.pd; return t > 0 ? +(b[k] / t * 100).toFixed(1) : 0; };
+    return {
+        vd:  ['L', 'M', 'H'].map(i => pct(buckets[i], 'vd')),
+        cmd: ['L', 'M', 'H'].map(i => pct(buckets[i], 'cmd')),
+        pd:  ['L', 'M', 'H'].map(i => pct(buckets[i], 'pd')),
+    };
+}
+
+// Per-player: leading run of consecutive no-focus sessions + days since last focus.
+// level: red (streak >= 3), amber (streak === 2), else green.
+function complianceFlags(sessions) {
+    const names = allPlayerNames();
+    const anchor = latestSessionDate(sessions);
+    return names.map(name => {
+        const rows = sessions
+            .filter(s => s.players.some(p => p.name === name))
+            .sort((a, b) => b.date.localeCompare(a.date))   // newest first
+            .map(s => ({ date: s.date, p: s.players.find(p => p.name === name) }));
+        let noFocusStreak = 0;
+        for (const r of rows) {
+            const hasFocus = r.p.velo_delivery || r.p.command || r.p.pitch_design;
+            if (hasFocus) break;
+            noFocusStreak++;
+        }
+        const lastFocus = rows.find(r => r.p.velo_delivery || r.p.command || r.p.pitch_design);
+        const lastFocusDate = lastFocus ? lastFocus.date : null;
+        const daysSince = lastFocusDate && anchor ? daysBetween(lastFocusDate, anchor) : null;
+        const level = noFocusStreak >= 3 ? 'red' : noFocusStreak === 2 ? 'amber' : 'green';
+        return { name, noFocusStreak, daysSince, lastFocusDate, level, total: rows.length };
+    });
+}
+
+function daysBetween(a, b) {
+    const [ay, am, ad] = a.split('-').map(Number);
+    const [by, bm, bd] = b.split('-').map(Number);
+    return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86400000);
+}
+
+function fmtShort(s) {
+    const [, m, d] = s.split('-');
+    return `${+m}/${+d}`;
 }
 
 // ─── Chart helpers ────────────────────────────────────────────────────────────
