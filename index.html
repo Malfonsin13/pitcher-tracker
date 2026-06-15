@@ -875,7 +875,7 @@ function renderAllPlayers(sessions, el) {
 
         <div style="margin-bottom:22px;">
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px;">
-                <div class="card-title" style="margin-bottom:0">Focus Area Trend — ${trendWindowLabel()}</div>
+                <div class="card-title" style="margin-bottom:0">Focus Area Trend — 7-session rolling avg · ${trendWindowLabel()}</div>
                 <div style="display:flex;gap:10px;flex-wrap:wrap;">
                     <div class="chart-mode-toggle" role="tablist">
                         <button type="button" class="cmt-btn ${trendWindow===14?'active':''}" onclick="setTrendWindow(14)">14d</button>
@@ -968,17 +968,19 @@ function drawTrendChart() {
     const ws = windowSessions(_allSessionsCache);
     const asPct = trendUnit === 'pct';
     const t = focusTrendSeries(ws, asPct);
+    const N = 7;   // 7-session trailing rolling average to smooth out noise
+    const vd = rollingAvg(t.vd, N), cmd = rollingAvg(t.cmd, N), pd = rollingAvg(t.pd, N), none = rollingAvg(t.none, N);
     const mk = (label, color, data, dash) => ({
         label, data, borderColor: color, backgroundColor: color,
-        borderDash: dash, tension: 0.3, pointRadius: 2, borderWidth: 2, spanGaps: true,
+        borderDash: dash, tension: 0.3, pointRadius: 0, borderWidth: 2, spanGaps: true,
     });
     charts.trend = new Chart(ctx, {
         type: 'line',
         data: { labels: t.labels, datasets: [
-            mk('Velo/Delivery', FOCUS_COLORS.vd,   t.vd,   []),
-            mk('Command',       FOCUS_COLORS.cmd,  t.cmd,  [6, 3]),
-            mk('Pitch Design',  FOCUS_COLORS.pd,   t.pd,   [2, 2]),
-            mk('No Focus',      FOCUS_COLORS.none, t.none, [1, 3]),
+            mk('Velo/Delivery', FOCUS_COLORS.vd,   vd,   []),
+            mk('Command',       FOCUS_COLORS.cmd,  cmd,  [6, 3]),
+            mk('Pitch Design',  FOCUS_COLORS.pd,   pd,   [2, 2]),
+            mk('No Focus',      FOCUS_COLORS.none, none, [1, 3]),
         ]},
         options: {
             responsive: true, maintainAspectRatio: false,
@@ -1511,6 +1513,14 @@ function daysBetween(a, b) {
 function fmtShort(s) {
     const [, m, d] = s.split('-');
     return `${+m}/${+d}`;
+}
+
+// Trailing n-session moving average, preserving array length.
+function rollingAvg(arr, n) {
+    return arr.map((_, i) => {
+        const win = arr.slice(Math.max(0, i - n + 1), i + 1);
+        return +(win.reduce((a, b) => a + b, 0) / win.length).toFixed(1);
+    });
 }
 
 // ─── Chart helpers ────────────────────────────────────────────────────────────
