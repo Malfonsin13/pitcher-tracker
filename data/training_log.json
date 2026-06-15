@@ -5544,7 +5544,7 @@
           "intensity": "L"
         },
         {
-          "name": "RUSSELL",
+          "name": "ROSSELL",
           "velo_delivery": false,
           "command": false,
           "pitch_design": false,
@@ -5668,7 +5668,7 @@
       "date": "2026-06-12",
       "players": [
         {
-          "name": "HALLO, O",
+          "name": "HALL, O",
           "velo_delivery": true,
           "command": false,
           "pitch_design": true,
