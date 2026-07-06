@@ -6620,6 +6620,103 @@
       ]
     },
     {
+      "id": "2026-07-03-1783302088569",
+      "date": "2026-07-03",
+      "players": [
+        {
+          "name": "HALL, O",
+          "velo_delivery": true,
+          "command": false,
+          "pitch_design": true,
+          "intensity": "L"
+        },
+        {
+          "name": "COBA",
+          "velo_delivery": false,
+          "command": true,
+          "pitch_design": false,
+          "intensity": "M"
+        },
+        {
+          "name": "CRUZ",
+          "velo_delivery": false,
+          "command": true,
+          "pitch_design": true,
+          "intensity": "L"
+        },
+        {
+          "name": "RODRIGUEZ",
+          "velo_delivery": false,
+          "command": true,
+          "pitch_design": false,
+          "intensity": "L"
+        },
+        {
+          "name": "HALL, R",
+          "velo_delivery": false,
+          "command": true,
+          "pitch_design": false,
+          "intensity": "H"
+        },
+        {
+          "name": "GRANT",
+          "velo_delivery": true,
+          "command": true,
+          "pitch_design": false,
+          "intensity": "L"
+        },
+        {
+          "name": "DIAZ",
+          "velo_delivery": false,
+          "command": true,
+          "pitch_design": false,
+          "intensity": "L"
+        },
+        {
+          "name": "VALDEZ",
+          "velo_delivery": false,
+          "command": true,
+          "pitch_design": false,
+          "intensity": "M"
+        },
+        {
+          "name": "LEON",
+          "velo_delivery": false,
+          "command": true,
+          "pitch_design": false,
+          "intensity": "H"
+        },
+        {
+          "name": "ROSSELL",
+          "velo_delivery": false,
+          "command": false,
+          "pitch_design": false,
+          "intensity": "L"
+        },
+        {
+          "name": "DANIEL",
+          "velo_delivery": false,
+          "command": true,
+          "pitch_design": false,
+          "intensity": "L"
+        },
+        {
+          "name": "ROGERS",
+          "velo_delivery": false,
+          "command": false,
+          "pitch_design": true,
+          "intensity": "L"
+        },
+        {
+          "name": "ALEWINE",
+          "velo_delivery": true,
+          "command": false,
+          "pitch_design": false,
+          "intensity": "M"
+        }
+      ]
+    },
+    {
       "id": "2026-07-04-1783301854291",
       "date": "2026-07-04",
       "players": [
